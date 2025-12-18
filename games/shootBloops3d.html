@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEEP SEA BLOOP: BUBBLE BATTLE</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@700&family=Slackey&display=swap');
+        body { margin: 0; overflow: hidden; background: #004466; font-family: 'Fredoka', sans-serif; user-select: none; }
+        
+        #hud {
+            position: absolute; inset: 0; pointer-events: none; z-index: 10;
+            padding: 25px; display: flex; flex-direction: column; justify-content: space-between;
+        }
+        .ui-header { display: flex; justify-content: space-between; font-size: 32px; color: #00ffff; text-shadow: 0 4px 10px #000; font-family: 'Slackey'; }
+        
+        #oxygen-meter {
+            width: 300px; height: 25px; border: 4px solid #fff; border-radius: 15px;
+            background: rgba(0,0,0,0.3); overflow: hidden; margin: 10px auto; box-shadow: 0 0 20px #00ffff;
+        }
+        #oxygen-fill { width: 100%; height: 100%; background: linear-gradient(90deg, #00ffff, #0088ff); transition: width 0.1s; }
+
+        #crosshair {
+            position: absolute; top: 50%; left: 50%; width: 40px; height: 40px;
+            border: 4px solid #00ffff; border-radius: 50%; transform: translate(-50%, -50%);
+            pointer-events: none; box-shadow: 0 0 10px #00ffff;
+        }
+
+        #overlay {
+            position: absolute; inset: 0; background: radial-gradient(circle, #006688 0%, #001122 100%);
+            display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100; color: #fff;
+        }
+        h1 { font-size: 80px; font-family: 'Slackey'; margin: 0; text-align: center; color: #00ffff; text-shadow: 8px 8px 0px #004466; }
+        .dive-btn {
+            background: #ff7f50; border: 6px solid #fff; padding: 20px 60px; font-size: 35px;
+            color: #fff; cursor: pointer; border-radius: 50px; font-family: 'Slackey'; margin-top: 30px;
+            box-shadow: 0 10px 0 #a52a2a; transition: 0.1s;
+        }
+        .dive-btn:active { transform: translateY(5px); box-shadow: 0 5px 0 #a52a2a; }
+
+        /* Underwater Wavy Effect */
+        #screen-wave {
+            position: absolute; inset: 0; pointer-events: none; z-index: 5;
+            background: transparent; backdrop-filter: none; transition: backdrop-filter 0.5s;
+        }
+        .frenzy-active { backdrop-filter: url(#wave-filter); }
+    </style>
+</head>
+<body>
+
+    <!-- SVG Filter for the "Wavy Water" effect when score is high -->
+    <svg style="display:none">
+        <filter id="wave-filter">
+            <feTurbulence type="fractalNoise" baseFrequency="0.02" numOctaves="3" seed="1">
+                <animate attributeName="baseFrequency" values="0.01;0.015;0.01" dur="5s" repeatCount="indefinite" />
+            </feTurbulence>
+            <feDisplacementMap in="SourceGraphic" scale="20" />
+        </filter>
+    </svg>
+
+    <div id="screen-wave"></div>
+
+    <div id="hud">
+        <div class="ui-header">
+            <div>PEARLS: <span id="score">0</span></div>
+            <div>O2: <span id="timer">30</span>s</div>
+        </div>
+        <div id="oxygen-meter"><div id="oxygen-fill"></div></div>
+    </div>
+
+    <div id="crosshair"></div>
+
+    <div id="overlay">
+        <h1>DEEP SEA<br>BLOOP</h1>
+        <p style="font-size: 20px; color: #00ffff;">POP THE ANXIOUS PUFFERFISH!</p>
+        <button class="dive-btn" id="start-btn">DIVE!</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+        // --- SUBMARINE AUDIO ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playBloop(f, d, v=0.15) {
+            const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+            o.type = 'sine'; o.frequency.setValueAtTime(f, audioCtx.currentTime);
+            o.frequency.exponentialRampToValueAtTime(f*0.5, audioCtx.currentTime + d);
+            g.gain.setValueAtTime(v, audioCtx.currentTime);
+            g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + d);
+            o.connect(g); g.connect(audioCtx.destination);
+            o.start(); o.stop(audioCtx.currentTime + d);
+        }
+
+        // --- VARS ---
+        let scene, camera, renderer, controls, clock;
+        let arm, charm, bubbles = [], targets = [], particles = [], seaweed = [];
+        let score = 0, timeLeft = 30, gameActive = false;
+
+        function init() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x004466);
+            scene.fog = new THREE.FogExp2(0x004466, 0.05);
+
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            controls = new PointerLockControls(camera, document.body);
+            clock = new THREE.Clock();
+
+            // Lighting: Caustics Effect
+            scene.add(new THREE.AmbientLight(0x00ffff, 0.5));
+            const pointL = new THREE.PointLight(0xffffff, 50, 100);
+            pointL.position.set(0, 20, 0);
+            scene.add(pointL);
+
+            // Floor: Sandy Seabed
+            const sandGeo = new THREE.PlaneGeometry(100, 100, 20, 20);
+            const sandMat = new THREE.MeshStandardMaterial({ color: 0xc2b280, roughness: 1 });
+            const floor = new THREE.Mesh(sandGeo, sandMat);
+            floor.rotation.x = -Math.PI/2;
+            floor.position.y = -4;
+            scene.add(floor);
+
+            // Seaweed
+            for(let i=0; i<30; i++) {
+                const s = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.2, 4, 8), new THREE.MeshStandardMaterial({color: 0x228b22}));
+                s.position.set((Math.random()-0.5)*40, -2, (Math.random()-0.5)*40 - 10);
+                scene.add(s);
+                seaweed.push(s);
+            }
+
+            // CRUSTACEAN CANNON (Sub Arm)
+            arm = new THREE.Group();
+            const tube = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.2, 1, 12), new THREE.MeshStandardMaterial({color: 0x888888, metalness: 0.8}));
+            tube.rotation.x = Math.PI/2;
+            arm.add(tube);
+            
+            const joint = new THREE.Mesh(new THREE.SphereGeometry(0.25), new THREE.MeshStandardMaterial({color: 0xff4400}));
+            joint.position.z = 0.4;
+            arm.add(joint);
+
+            // Clownfish Charm
+            charm = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.1), new THREE.MeshStandardMaterial({color: 0xffa500}));
+            const stripe = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.02, 8, 16), new THREE.MeshBasicMaterial({color: 0xffffff}));
+            charm.add(body, stripe);
+            charm.position.set(-0.3, -0.2, 0);
+            arm.add(charm);
+
+            arm.position.set(0.6, -0.5, -1);
+            camera.add(arm);
+            scene.add(camera);
+
+            document.getElementById('start-btn').onclick = startGame;
+            window.onmousedown = shoot;
+            animate();
+        }
+
+        function createPuffer() {
+            const group = new THREE.Group();
+            const body = new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 16), new THREE.MeshStandardMaterial({color: 0xeecc44}));
+            group.add(body);
+
+            // Spikes
+            for(let i=0; i<20; i++) {
+                const spike = new THREE.Mesh(new THREE.ConeGeometry(0.05, 0.2), new THREE.MeshStandardMaterial({color: 0xeecc44}));
+                spike.position.set(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize().multiplyScalar(0.6);
+                spike.lookAt(new THREE.Vector3(0,0,0));
+                spike.rotation.x += Math.PI/2;
+                group.add(spike);
+            }
+
+            // Snorkeling Goggles
+            const glass = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.25, 0.1), new THREE.MeshStandardMaterial({color: 0x00ffff, transparent: true, opacity: 0.6}));
+            glass.position.set(0, 0.1, 0.55);
+            group.add(glass);
+
+            group.position.set((Math.random()-0.5)*20, (Math.random()-0.5)*8 + 1, -10 - Math.random()*15);
+            scene.add(group);
+            targets.push(group);
+        }
+
+        function startGame() {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            score = 0; timeLeft = 30; gameActive = true;
+            document.getElementById('overlay').style.display = 'none';
+            controls.lock();
+            for(let i=0; i<8; i++) createPuffer();
+        }
+
+        function shoot() {
+            if(!controls.isLocked || !gameActive) return;
+            
+            playBloop(150, 0.2); 
+            arm.position.z += 0.2; // Kickback
+
+            // Bubble Projectile
+            const bubble = new THREE.Mesh(
+                new THREE.SphereGeometry(0.15, 16, 16), 
+                new THREE.MeshStandardMaterial({color: 0xffffff, transparent: true, opacity: 0.4, roughness: 0})
+            );
+            bubble.position.copy(camera.position);
+            bubble.quaternion.copy(camera.quaternion);
+            scene.add(bubble);
+            bubbles.push({ mesh: bubble, life: 1.5 });
+
+            const ray = new THREE.Raycaster();
+            ray.setFromCamera(new THREE.Vector2(0,0), camera);
+            const hits = ray.intersectObjects(targets, true);
+
+            if(hits.length > 0) {
+                let t = hits[0].object;
+                while(t.parent !== scene) t = t.parent;
+
+                score += 100;
+                playBloop(400, 0.3, 0.2);
+                
+                // Pop Effect
+                explode(t.position, 0xeecc44);
+                scene.remove(t);
+                targets = targets.filter(o => o !== t);
+                createPuffer();
+                document.getElementById('score').innerText = score;
+                
+                // Activate Wavy Screen if score is high
+                if(score > 1000) document.getElementById('screen-wave').classList.add('frenzy-active');
+            }
+        }
+
+        function explode(pos, color) {
+            for(let i=0; i<15; i++) {
+                const p = new THREE.Mesh(new THREE.SphereGeometry(0.08), new THREE.MeshBasicMaterial({color: color}));
+                p.position.copy(pos);
+                p.userData = {v: new THREE.Vector3((Math.random()-0.5)*0.4, (Math.random()-0.5)*0.4, (Math.random()-0.5)*0.4)};
+                scene.add(p);
+                particles.push(p);
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+            const delta = clock.getDelta();
+            const time = clock.elapsedTime;
+
+            if(gameActive) {
+                timeLeft -= delta;
+                document.getElementById('timer').innerText = Math.ceil(timeLeft);
+                document.getElementById('oxygen-fill').style.width = (timeLeft/30 * 100) + '%';
+                if(timeLeft <= 0) endGame();
+            }
+
+            // Submarine Sway
+            arm.position.z = THREE.MathUtils.lerp(arm.position.z, -1, 0.1);
+            arm.position.y = -0.5 + Math.sin(time*1.5)*0.03;
+            charm.rotation.y = time * 2;
+            charm.position.y = -0.2 + Math.sin(time*4)*0.02;
+
+            // Seaweed Waving
+            seaweed.forEach((s, i) => {
+                s.rotation.z = Math.sin(time + i) * 0.1;
+            });
+
+            // Projectiles
+            bubbles.forEach((b, i) => {
+                b.mesh.translateZ(-0.6);
+                b.mesh.position.y += 0.02; // Bubbles float up
+                b.life -= delta;
+                if(b.life <= 0) { scene.remove(b.mesh); bubbles.splice(i,1); }
+            });
+
+            // Targets
+            targets.forEach(t => {
+                t.lookAt(camera.position);
+                t.position.y += Math.sin(time * 2 + t.position.x) * 0.01;
+                t.scale.setScalar(1 + Math.sin(time*4)*0.05); // Pulsing
+            });
+
+            // Particles
+            particles.forEach((p, i) => {
+                p.position.add(p.userData.v);
+                p.userData.v.y += 0.005; // Bits float up
+                p.scale.multiplyScalar(0.96);
+                if(p.scale.x < 0.1) { scene.remove(p); particles.splice(i,1); }
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        function endGame() {
+            gameActive = false; controls.unlock();
+            document.getElementById('screen-wave').classList.remove('frenzy-active');
+            const over = document.getElementById('overlay');
+            over.style.display = 'flex';
+            over.innerHTML = `<h1>OUT OF O2!</h1><p style="font-size:30px">PEARLS COLLECTED: ${score}</p><button class="dive-btn" onclick="location.reload()">DIVE AGAIN!</button>`;
+        }
+
+        init();
+    </script>
+</body>
+</html>
