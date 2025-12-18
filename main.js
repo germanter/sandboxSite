@@ -16,8 +16,12 @@ const games = [
 
 //color base control here
 const colorPalette = [
-  "blue", "purple", "indigo", "violet", "cyan", "fuchsia", 
-  "sky", "blue", "indigo", "purple", "cyan", "violet"
+  "blue",    // Mavi
+  "purple",  // Mor
+  "amber",   // Kehribar/Turuncu
+  "green",   // Yeşil
+  "red",     // Kırmızı
+  "slate"    // Gri/Füme
 ];
 
 
