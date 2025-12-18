@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elastic Collision Simulator</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a2a6c, #2c3e50);
+            color: #ecf0f1;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+        }
+        
+        h1 {
+            color: #ffffff;
+            text-align: center;
+            margin-bottom: 30px;
+            font-weight: 600;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        #canvas {
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            background: rgba(0, 0, 0, 0.2);
+            display: block;
+            margin: 0 auto 30px;
+            border-radius: 8px;
+        }
+        
+        .controls {
+            background: rgba(0, 0, 0, 0.2);
+            padding: 25px;
+            border-radius: 10px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .car-controls {
+            padding: 20px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.08);
+        }
+        
+        .car1-controls {
+            border-left: 4px solid #ff6b6b;
+        }
+        
+        .car2-controls {
+            border-left: 4px solid #4ecdc4;
+        }
+        
+        .slider-group {
+            margin: 15px 0;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #ffffff;
+            font-weight: 500;
+        }
+        
+        input[type="range"] {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.1);
+            outline: none;
+            -webkit-appearance: none;
+        }
+        
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        input[type="range"]::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #ffffff;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .value-display {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 5px 12px;
+            border-radius: 4px;
+            font-weight: bold;
+            margin-left: 10px;
+            color: #ffffff;
+            min-width: 60px;
+            text-align: center;
+        }
+        
+        .info-panel {
+            grid-column: 1 / -1;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .info-item {
+            margin: 8px 0;
+            font-size: 15px;
+        }
+        
+        .info-label {
+            font-weight: 600;
+            color: #ffffff;
+        }
+        
+        button {
+            grid-column: 1 / -1;
+            padding: 14px 30px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #ffffff;
+            background: linear-gradient(to right, #3498db, #2c3e50);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Elastic Collision Simulator</h1>
+        
+        <canvas id="canvas" width="800" height="400"></canvas>
+        
+        <div class="controls">
+            <div class="car-controls car1-controls">
+                <h3 style="color: #ff6b6b; margin-top: 0;">Car 1 (Red)</h3>
+                
+                <div class="slider-group">
+                    <label>Mass: <span class="value-display" id="mass1-value">10</span> kg</label>
+                    <input type="range" id="mass1" min="1" max="50" value="10" step="1">
+                </div>
+                
+                <div class="slider-group">
+                    <label>Initial Speed: <span class="value-display" id="speed1-value">5</span> m/s</label>
+                    <input type="range" id="speed1" min="0" max="20" value="5" step="0.5">
+                </div>
+            </div>
+            
+            <div class="car-controls car2-controls">
+                <h3 style="color: #4ecdc4; margin-top: 0;">Car 2 (Blue)</h3>
+                
+                <div class="slider-group">
+                    <label>Mass: <span class="value-display" id="mass2-value">10</span> kg</label>
+                    <input type="range" id="mass2" min="1" max="50" value="10" step="1">
+                </div>
+                
+                <div class="slider-group">
+                    <label>Initial Speed: <span class="value-display" id="speed2-value">5</span> m/s</label>
+                    <input type="range" id="speed2" min="0" max="20" value="5" step="0.5">
+                </div>
+            </div>
+            
+            <div class="info-panel">
+                <div class="info-item">
+                    <span class="info-label">Total Momentum:</span> 
+                    <span id="momentum">0</span> kg·m/s
+                </div>
+                <div class="info-item">
+                    <span class="info-label">Total Kinetic Energy:</span> 
+                    <span id="kinetic-energy">0</span> J
+                </div>
+            </div>
+            
+            <button onclick="resetSimulation()">Reset Simulation</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Physics constants
+        const SCALE = 10; // 1 meter = 10 pixels
+        const CAR_WIDTH = 40;
+        const CAR_HEIGHT = 30;
+        
+        // Car objects
+        let car1 = {
+            x: 150,
+            y: 200,
+            mass: 10,
+            velocity: 5,
+            color: '#ff6b6b'
+        };
+        
+        let car2 = {
+            x: 650,
+            y: 200,
+            mass: 10,
+            velocity: -5,
+            color: '#4ecdc4'
+        };
+        
+        let animationId;
+        let hasCollided = false;
+        
+        // Get slider elements
+        const mass1Slider = document.getElementById('mass1');
+        const speed1Slider = document.getElementById('speed1');
+        const mass2Slider = document.getElementById('mass2');
+        const speed2Slider = document.getElementById('speed2');
+        
+        // Update value displays
+        function updateValueDisplays() {
+            document.getElementById('mass1-value').textContent = mass1Slider.value;
+            document.getElementById('speed1-value').textContent = speed1Slider.value;
+            document.getElementById('mass2-value').textContent = mass2Slider.value;
+            document.getElementById('speed2-value').textContent = speed2Slider.value;
+        }
+        
+        // Slider event listeners
+        mass1Slider.addEventListener('input', () => {
+            car1.mass = parseFloat(mass1Slider.value);
+            updateValueDisplays();
+            resetSimulation();
+        });
+        
+        speed1Slider.addEventListener('input', () => {
+            car1.velocity = parseFloat(speed1Slider.value);
+            updateValueDisplays();
+            resetSimulation();
+        });
+        
+        mass2Slider.addEventListener('input', () => {
+            car2.mass = parseFloat(mass2Slider.value);
+            updateValueDisplays();
+            resetSimulation();
+        });
+        
+        speed2Slider.addEventListener('input', () => {
+            car2.velocity = -parseFloat(speed2Slider.value);
+            updateValueDisplays();
+            resetSimulation();
+        });
+        
+        // Physics functions
+        function calculateCollision(car1, car2) {
+            const v1 = car1.velocity;
+            const v2 = car2.velocity;
+            const m1 = car1.mass;
+            const m2 = car2.mass;
+            
+            // Elastic collision formulas
+            const newV1 = ((m1 - m2) * v1 + 2 * m2 * v2) / (m1 + m2);
+            const newV2 = ((m2 - m1) * v2 + 2 * m1 * v1) / (m1 + m2);
+            
+            return { v1: newV1, v2: newV2 };
+        }
+        
+        function updatePhysics() {
+            // Update positions
+            car1.x += car1.velocity * SCALE * 0.016; // Assuming 60 FPS
+            car2.x += car2.velocity * SCALE * 0.016;
+            
+            // Check for collision
+            if (!hasCollided && Math.abs(car1.x - car2.x) < CAR_WIDTH) {
+                const result = calculateCollision(car1, car2);
+                car1.velocity = result.v1;
+                car2.velocity = result.v2;
+                hasCollided = true;
+                
+                // Add a visual cue for collision
+                document.getElementById('canvas').style.border = '3px solid #f1c40f';
+                setTimeout(() => {
+                    document.getElementById('canvas').style.border = '1px solid rgba(255, 255, 255, 0.3)';
+                }, 200);
+            }
+            
+            // Reset collision flag when cars separate
+            if (hasCollided && Math.abs(car1.x - car2.x) > CAR_WIDTH) {
+                hasCollided = false;
+            }
+            
+            // Bounce off walls
+            if (car1.x <= CAR_WIDTH/2 || car1.x >= canvas.width - CAR_WIDTH/2) {
+                car1.velocity = -car1.velocity;
+            }
+            if (car2.x <= CAR_WIDTH/2 || car2.x >= canvas.width - CAR_WIDTH/2) {
+                car2.velocity = -car2.velocity;
+            }
+            
+            // Keep cars within bounds
+            car1.x = Math.max(CAR_WIDTH/2, Math.min(canvas.width - CAR_WIDTH/2, car1.x));
+            car2.x = Math.max(CAR_WIDTH/2, Math.min(canvas.width - CAR_WIDTH/2, car2.x));
+            
+            updateInfo();
+        }
+        
+        function updateInfo() {
+            // Calculate momentum
+            const momentum1 = car1.mass * car1.velocity;
+            const momentum2 = car2.mass * car2.velocity;
+            const totalMomentum = momentum1 + momentum2;
+            
+            // Calculate kinetic energy
+            const ke1 = 0.5 * car1.mass * car1.velocity * car1.velocity;
+            const ke2 = 0.5 * car2.mass * car2.velocity * car2.velocity;
+            const totalKE = ke1 + ke2;
+            
+            document.getElementById('momentum').textContent = totalMomentum.toFixed(2);
+            document.getElementById('kinetic-energy').textContent = totalKE.toFixed(2);
+        }
+        
+        function drawCar(car) {
+            ctx.save();
+            
+            // Draw car body
+            ctx.fillStyle = car.color;
+            ctx.fillRect(
+                car.x - CAR_WIDTH/2,
+                car.y - CAR_HEIGHT/2,
+                CAR_WIDTH,
+                CAR_HEIGHT
+            );
+            
+            // Draw direction indicator
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            if (car.velocity > 0) {
+                ctx.moveTo(car.x + CAR_WIDTH/3, car.y);
+                ctx.lineTo(car.x + CAR_WIDTH/2, car.y);
+            } else if (car.velocity < 0) {
+                ctx.moveTo(car.x - CAR_WIDTH/3, car.y);
+                ctx.lineTo(car.x - CAR_WIDTH/2, car.y);
+            }
+            ctx.stroke();
+            
+            // Draw mass label
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(car.mass + 'kg', car.x, car.y + 5);
+            
+            // Draw velocity label
+            ctx.font = '12px "Segoe UI", Tahoma, Geneva, Verdana, sans-serif';
+            const speed = Math.abs(car.velocity).toFixed(1);
+            ctx.fillText(speed + ' m/s', car.x, car.y - CAR_HEIGHT/2 - 10);
+            
+            ctx.restore();
+        }
+        
+        function draw() {
+            // Clear canvas
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw ground
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, car1.y + CAR_HEIGHT/2);
+            ctx.lineTo(canvas.width, car1.y + CAR_HEIGHT/2);
+            ctx.stroke();
+            
+            // Draw cars
+            drawCar(car1);
+            drawCar(car2);
+            
+            // Draw collision point indicator when near
+            if (Math.abs(car1.x - car2.x) < CAR_WIDTH * 1.5) {
+                ctx.strokeStyle = 'rgba(241, 196, 15, 0.5)';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([8, 4]);
+                ctx.beginPath();
+                ctx.moveTo((car1.x + car2.x) / 2, car1.y - CAR_HEIGHT);
+                ctx.lineTo((car1.x + car2.x) / 2, car1.y + CAR_HEIGHT);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        }
+        
+        function animate() {
+            updatePhysics();
+            draw();
+            animationId = requestAnimationFrame(animate);
+        }
+        
+        function resetSimulation() {
+            // Cancel current animation
+            if (animationId) {
+                cancelAnimationFrame(animationId);
+            }
+            
+            // Reset car positions
+            car1.x = 150;
+            car2.x = 650;
+            car1.velocity = parseFloat(speed1Slider.value);
+            car2.velocity = -parseFloat(speed2Slider.value);
+            
+            // Reset flags
+            hasCollided = false;
+            
+            // Clear canvas and restart
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            draw();
+            animate();
+        }
+        
+        // Initialize
+        updateValueDisplays();
+        draw();
+        animate();
+    </script>
+</body>
+</html>

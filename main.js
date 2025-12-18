@@ -70,6 +70,14 @@ const games = [
     border: "border-purple-200 hover:border-purple-400",
     btn: "bg-purple-600 hover:bg-purple-700",
     link: "/games//shootBloops3d.html"
+  },
+    {
+    title: "Crazy Impulse",
+    color: "blue",
+    bg: "from-blue-50 to-blue-50",
+    border: "border-blue-200 hover:border-blue-400",
+    btn: "bg-blue-600 hover:bg-blue-700",
+    link: "/games//crazyImpulse.html"
   }
 ];
 
