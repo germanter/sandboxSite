@@ -1,0 +1,569 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D Drone Simulator — Advanced Physics</title>
+    <style>
+        html,body{height:100%;margin:0;background:#87CEEB;font-family:monospace}
+        #canvas-container{width:100vw;height:100vh;overflow:hidden}
+        #hud{position:absolute;left:12px;top:12px;color:#fff;background:rgba(0,0,0,0.45);padding:12px;border-radius:8px;pointer-events:none}
+        #hud h3{margin:0 0 6px 0;font-size:14px}
+        #controls{position:absolute;right:12px;top:12px;color:#fff;background:rgba(0,0,0,0.35);padding:12px;border-radius:8px}
+        #crash-msg{display:none;position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:rgba(200,16,16,0.9);color:#fff;padding:24px;border-radius:10px;border:2px solid #fff;font-weight:700;text-align:center}
+        #debug{position:absolute;left:12px;bottom:12px;color:#fff;background:rgba(0,0,0,0.25);padding:8px;border-radius:6px;font-size:12px}
+        .small{font-size:12px; line-height: 1.4em;}
+        .bar{width:120px;height:8px;background:rgba(255,255,255,0.15);border-radius:4px;overflow:hidden}
+        .bar > i{display:block;height:100%;background:linear-gradient(90deg,#60ff60,#23a323);width:100%}
+        button{pointer-events:auto}
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div id="hud">
+        <h3>DRONE OS — ADV v3.1</h3>
+        <div>Mode: <span id="mode" style="color:#0f0">GPS/STABILIZED</span></div>
+        <div>Altitude: <span id="alt">0.0</span> m</div>
+        <div>Vert Speed: <span id="vspeed">0.0</span> m/s</div>
+        <div>Speed: <span id="speed">0.0</span> m/s</div>
+        <div>Battery: <span id="batteryTxt">100%</span>
+            <div class="bar"><i id="batteryBar" style="width:100%"></i></div>
+        </div>
+        <hr style="margin:6px 0">
+        <div class="small"><b>Controls:</b></div>
+        <div class="small">W/S: Pitch (Forward/Back)</div>
+        <div class="small">A/D: Roll (Left/Right)</div>
+        <div class="small">←/→: Yaw (Rotate)</div>
+        <div class="small">↑/↓: Altitude (Up/Down)</div>
+        <div class="small">Shift: Turbo • C: Camera</div>
+        <div class="small">R: Reset • M: Wind</div>
+    </div>
+
+    <div id="controls"></div>
+
+    <div id="crash-msg">CRITICAL FAILURE<br><small>Rotors Blocked</small><br><br><small style="font-weight:400">Press <b>R</b> to Reboot System</small></div>
+    <div id="debug"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+    // --- ADVANCED CONFIGURATION ---
+    const CONFIG = {
+        gravity: 9.81,
+        mass: 1.0,
+        
+        // Motor Power
+        maxThrust: 28.0,        // Newtons (Total)
+        
+        // Flight Controller Settings
+        maxTiltAngle: 0.65,     // Radians (~35 degrees)
+        maxAscentSpeed: 8.0,    // m/s
+        maxDescentSpeed: 6.0,   // m/s
+        maxYawSpeed: 2.5,       // rad/s
+        
+        // PID & Response Tuning
+        inputSensitivity: 3.0,  // How fast inputs ramp up (1 = slow, 5 = snappy)
+        tiltP: 6.0,             // Proportional stability for leveling
+        tiltD: 4.0,             // Damping for leveling (stops oscillation)
+        verticalP: 10.0,         // Altitude hold strength
+        verticalD: 5.0,         // Vertical damping
+        
+        // Aerodynamics
+        dragCoeff: 0.6,         // Air resistance
+        angularDrag: 4.0,       // Rotational friction
+        
+        batteryDrainPerSec: 0.5,
+        windStrength: 0.0
+    };
+
+    // --- THREE SETUP ---
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB);
+    scene.fog = new THREE.Fog(0x87CEEB, 30, 250);
+
+    const camera = new THREE.PerspectiveCamera(75, innerWidth/innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+    const ambient = new THREE.AmbientLight(0xffffff,0.6); scene.add(ambient);
+    const sun = new THREE.DirectionalLight(0xffffff,1.0); 
+    sun.position.set(60,120,40); 
+    sun.castShadow=true; 
+    sun.shadow.mapSize.width=2048; 
+    sun.shadow.mapSize.height=2048;
+    scene.add(sun);
+
+    // Ground
+    const ground = new THREE.Mesh(new THREE.PlaneGeometry(600,600), new THREE.MeshStandardMaterial({color:0x2e8b57, roughness: 0.8}));
+    ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
+
+    // Grid
+    const grid = new THREE.GridHelper(600,120,0x000000,0x000000); grid.material.opacity=0.1; grid.material.transparent=true; grid.position.y=0.01; scene.add(grid);
+
+    // Obstacles
+    const obstaclesMeshes = [];
+    function spawnObstacles(count=40){
+        const geom = new THREE.CylinderGeometry(0.2,0.5,12,8);
+        const mat = new THREE.MeshStandardMaterial({color:0x5C4033});
+        const leafGeom = new THREE.DodecahedronGeometry(1.5);
+        const leafMat = new THREE.MeshStandardMaterial({color:0x228B22});
+
+        for(let i=0;i<count;i++){
+            let x=(Math.random()-0.5)*400; let z=(Math.random()-0.5)*400;
+            if(Math.abs(x)<15 && Math.abs(z)<15) continue; // clear spawn
+            
+            const group = new THREE.Group();
+            group.position.set(x,6,z);
+            
+            const trunk = new THREE.Mesh(geom,mat);
+            trunk.castShadow=true; trunk.receiveShadow=true;
+            group.add(trunk);
+            
+            // Leaves
+            const leaves = new THREE.Mesh(leafGeom, leafMat);
+            leaves.position.y = 4;
+            leaves.castShadow=true;
+            group.add(leaves);
+
+            scene.add(group);
+            
+            // Add collision box to trunk only for simplicity
+            trunk.updateMatrixWorld(); // ensure world coords
+            obstaclesMeshes.push(trunk); 
+        }
+    }
+    spawnObstacles(50);
+
+    // CARS (AI)
+    const carsMeshes = [];
+    function spawnCars(count=12){
+        const carGeom = new THREE.BoxGeometry(1.6,0.6,0.8);
+        const carMats = [
+            new THREE.MeshStandardMaterial({color:0xd63031}),
+            new THREE.MeshStandardMaterial({color:0x0984e3}),
+            new THREE.MeshStandardMaterial({color:0xfdcb6e}),
+            new THREE.MeshStandardMaterial({color:0x6c5ce7})
+        ];
+        for(let i=0;i<count;i++){
+            const m = new THREE.Mesh(carGeom, carMats[i%carMats.length]);
+            let x=(Math.random()-0.5)*300; let z=(Math.random()-0.5)*300;
+            if(Math.abs(x)<15 && Math.abs(z)<15) x+=40;
+            m.position.set(x,0.3,z);
+            m.castShadow=true; m.receiveShadow=true;
+            
+            // Add headlights
+            const hl = new THREE.SpotLight(0xffffee, 2, 20, 0.5, 0.5, 1);
+            hl.position.set(0.8, 0.2, 0);
+            hl.target.position.set(2,0,0);
+            m.add(hl);
+            m.add(hl.target);
+
+            m.userData = {
+                speed: 5 + Math.random()*8,
+                target: new THREE.Vector3((Math.random()-0.5)*350, 0, (Math.random()-0.5)*350),
+                turnSpeed: 2.0
+            };
+            scene.add(m);
+            carsMeshes.push(m);
+        }
+    }
+    spawnCars(15);
+
+    // --- DRONE MODEL ---
+    const drone = new THREE.Group();
+    // Body
+    const bodyGeom = new THREE.BoxGeometry(0.8, 0.15, 0.4);
+    const bodyMat = new THREE.MeshStandardMaterial({color:0x2d3436, roughness:0.4, metalness:0.6});
+    const body = new THREE.Mesh(bodyGeom, bodyMat); 
+    body.castShadow=true; drone.add(body);
+    
+    // Arms
+    const armGeom = new THREE.BoxGeometry(1.4, 0.05, 0.05);
+    const arm1 = new THREE.Mesh(armGeom, bodyMat); arm1.rotation.y = Math.PI/4; drone.add(arm1);
+    const arm2 = new THREE.Mesh(armGeom, bodyMat); arm2.rotation.y = -Math.PI/4; drone.add(arm2);
+
+    // Motors & Props
+    const props = [];
+    const propGeom = new THREE.BoxGeometry(0.6, 0.02, 0.08);
+    const motorGeom = new THREE.CylinderGeometry(0.08,0.08,0.1,16);
+    const motorMat = new THREE.MeshStandardMaterial({color:0x636e72});
+
+    const positions = [
+        {x:-0.5, z:0.5, dir:1}, {x:0.5, z:-0.5, dir:1}, // CW
+        {x:0.5, z:0.5, dir:-1}, {x:-0.5, z:-0.5, dir:-1} // CCW
+    ];
+
+    positions.forEach(p => {
+        const m = new THREE.Mesh(motorGeom, motorMat);
+        m.position.set(p.x, 0.08, p.z);
+        drone.add(m);
+
+        const blade = new THREE.Mesh(propGeom, new THREE.MeshStandardMaterial({color:0x111111}));
+        blade.position.y = 0.06;
+        m.add(blade);
+        props.push({mesh: blade, speed: 0, dir: p.dir});
+    });
+
+    // Lights
+    const led1 = new THREE.PointLight(0xff0000, 1, 2); led1.position.set(-0.4, -0.1, -0.4); drone.add(led1);
+    const led2 = new THREE.PointLight(0xff0000, 1, 2); led2.position.set(0.4, -0.1, -0.4); drone.add(led2); // Rear Red
+    const led3 = new THREE.PointLight(0xffffff, 1, 4); led3.position.set(0, -0.1, 0.4); drone.add(led3); // Front Flash
+
+    scene.add(drone);
+
+    // --- PHYSICS STATE & INPUTS ---
+    const physics = {
+        pos: new THREE.Vector3(0, 0.5, 0),
+        vel: new THREE.Vector3(0, 0, 0),
+        acc: new THREE.Vector3(0, 0, 0),
+        quat: new THREE.Quaternion(), // Actual rotation
+        angVel: new THREE.Vector3(0, 0, 0), // Rotational velocity
+        battery: 100.0,
+        crashed: false
+    };
+
+    // Smoothed Inputs (Virtual Stick positions)
+    const inputs = {
+        throttle: 0, // -1 to 1 (0 is center/hover)
+        yaw: 0,      // -1 to 1
+        pitch: 0,    // -1 to 1
+        roll: 0,     // -1 to 1
+        turbo: false
+    };
+
+    const keys = {};
+    window.addEventListener('keydown', (e) => keys[e.key] = true);
+    window.addEventListener('keyup', (e) => keys[e.key] = false);
+    
+    // Key Handling Wrapper
+    window.addEventListener('keydown', (e) => {
+        if(e.key.toLowerCase() === 'r') resetDrone();
+        if(e.key.toLowerCase() === 'c') cycleCamera();
+        if(e.key.toLowerCase() === 'm') { 
+            CONFIG.windEnabled = !CONFIG.windEnabled; 
+            document.getElementById('debug').innerHTML = CONFIG.windEnabled ? "Wind: ON" : "Wind: OFF";
+        }
+    });
+
+    let cameraMode = 0;
+    function cycleCamera() { cameraMode = (cameraMode + 1) % 3; }
+
+    function resetDrone() {
+        physics.pos.set(0, 0.5, 0);
+        physics.vel.set(0,0,0);
+        physics.angVel.set(0,0,0);
+        physics.quat.set(0,0,0,1);
+        physics.crashed = false;
+        physics.battery = 100;
+        drone.rotation.set(0,0,0);
+        document.getElementById('crash-msg').style.display = 'none';
+    }
+
+    // Input Processing (Smoothing)
+    function updateInputs(dt) {
+        if (physics.crashed) return;
+
+        // Target values based on keys (0 or 1)
+        const targetPitch = (keys['w']||keys['W'] ? -1 : 0) + (keys['s']||keys['S'] ? 1 : 0);
+        const targetRoll  = (keys['a']||keys['A'] ? -1 : 0) + (keys['d']||keys['D'] ? 1 : 0);
+        const targetYaw   = (keys['ArrowLeft'] ? 1 : 0) + (keys['ArrowRight'] ? -1 : 0);
+        const targetThrot = (keys['ArrowUp'] ? 1 : 0) + (keys['ArrowDown'] ? -1 : 0);
+        
+        inputs.turbo = keys['Shift'];
+
+        // Linear interpolation (Lerp) for smoothing to simulate analog stick ramping
+        const lerpFactor = CONFIG.inputSensitivity * dt;
+        
+        inputs.pitch = THREE.MathUtils.lerp(inputs.pitch, targetPitch, lerpFactor);
+        inputs.roll  = THREE.MathUtils.lerp(inputs.roll, targetRoll, lerpFactor);
+        inputs.yaw   = THREE.MathUtils.lerp(inputs.yaw, targetYaw, lerpFactor);
+        inputs.throttle = THREE.MathUtils.lerp(inputs.throttle, targetThrot, lerpFactor);
+    }
+
+    // --- PHYSICS ENGINE ---
+    function updatePhysics(dt) {
+        if (physics.crashed) return;
+
+        // 1. Calculate Control Targets (Flight Controller Logic)
+        
+        // Tilt Control (Self-Leveling / Angle Mode)
+        const targetEuler = new THREE.Euler(
+            inputs.pitch * CONFIG.maxTiltAngle, 
+            0, // Yaw handled separately
+            -inputs.roll * CONFIG.maxTiltAngle, 
+            'YXZ'
+        );
+
+        // Get current rotation in Euler for PID calculations
+        const currentEuler = new THREE.Euler().setFromQuaternion(physics.quat, 'YXZ');
+
+        // Pitch/Roll PID (Spring back to center)
+        const pitchErr = targetEuler.x - currentEuler.x;
+        const rollErr = targetEuler.z - currentEuler.z;
+        
+        // Desired angular accel
+        const targetAngVelX = pitchErr * CONFIG.tiltP;
+        const targetAngVelZ = rollErr * CONFIG.tiltP;
+        
+        // Apply torque (Force rotation)
+        physics.angVel.x += (targetAngVelX - physics.angVel.x) * CONFIG.tiltD * dt;
+        physics.angVel.z += (targetAngVelZ - physics.angVel.z) * CONFIG.tiltD * dt;
+
+        // Yaw Control (Rate Mode)
+        const targetYawSpeed = inputs.yaw * CONFIG.maxYawSpeed;
+        physics.angVel.y += (targetYawSpeed - physics.angVel.y) * 4.0 * dt;
+
+        // Altitude Control (Velocity PID + Gravity Compensation)
+        // If throttle input is 0, we hover (0 vertical speed). 
+        // If input > 0, we climb.
+        let targetVSpeed = inputs.throttle * (inputs.throttle > 0 ? CONFIG.maxAscentSpeed : CONFIG.maxDescentSpeed);
+        if(inputs.turbo) targetVSpeed *= 1.5;
+
+        const vSpeedErr = targetVSpeed - physics.vel.y;
+        
+        // Calculate Thrust needed:
+        // F = ma + mg (to hover) + drag compensation
+        // Simple PID for Thrust
+        const hoverThrust = CONFIG.gravity * CONFIG.mass;
+        const stabilizationThrust = vSpeedErr * CONFIG.verticalP; // Proportional
+        // Add D term (damping) based on acceleration difference if needed, but velocity P is usually enough for simple models
+        
+        let totalThrust = hoverThrust + stabilizationThrust;
+        
+        // Clamp thrust to physical limits
+        totalThrust = THREE.MathUtils.clamp(totalThrust, 0, CONFIG.maxThrust);
+        if(physics.battery <= 0) totalThrust = 0;
+
+        // 2. Apply Forces
+
+        // Direction of thrust is always local "Up" of the drone
+        const thrustVec = new THREE.Vector3(0, 1, 0);
+        thrustVec.applyQuaternion(physics.quat);
+        thrustVec.multiplyScalar(totalThrust);
+
+        // Gravity
+        const gravityVec = new THREE.Vector3(0, -CONFIG.gravity * CONFIG.mass, 0);
+
+        // Drag (Air Resistance) - opposing velocity
+        const dragVec = physics.vel.clone().multiplyScalar(-CONFIG.dragCoeff);
+
+        // Wind (Perturbation)
+        const windVec = new THREE.Vector3();
+        if(CONFIG.windEnabled) {
+            const t = performance.now() * 0.001;
+            windVec.set(
+                Math.sin(t) * 2 + Math.cos(t*2.5), 
+                Math.sin(t*1.5) * 0.5, 
+                Math.cos(t) * 2
+            ).multiplyScalar(0.5);
+        }
+
+        // Net Force
+        const netForce = new THREE.Vector3().add(thrustVec).add(gravityVec).add(dragVec).add(windVec);
+
+        // Newton's 2nd Law: F = ma -> a = F/m
+        physics.acc.copy(netForce).divideScalar(CONFIG.mass);
+
+        // Integrate Velocity
+        physics.vel.addScaledVector(physics.acc, dt);
+
+        // Integrate Position
+        physics.pos.addScaledVector(physics.vel, dt);
+
+        // Integrate Rotation
+        // Small angle approximation for quaternion integration
+        const angle = physics.angVel.length() * dt;
+        if (angle > 0) {
+            const axis = physics.angVel.clone().normalize();
+            const qStep = new THREE.Quaternion().setFromAxisAngle(axis, angle);
+            physics.quat.multiply(qStep);
+        }
+
+        // 3. Environment Constraints
+
+        // Floor Collision
+        if (physics.pos.y < 0.2) {
+            physics.pos.y = 0.2;
+            if (physics.vel.y < -2.0) {
+                // Hard landing
+                physics.crashed = true;
+                document.getElementById('crash-msg').style.display = 'block';
+            }
+            physics.vel.y = 0;
+            // Ground friction
+            physics.vel.x *= 0.9;
+            physics.vel.z *= 0.9;
+            physics.angVel.multiplyScalar(0.8);
+            
+            // Level out quaternion slightly on ground
+            const up = new THREE.Vector3(0,1,0);
+            const currentUp = new THREE.Vector3(0,1,0).applyQuaternion(physics.quat);
+            if(currentUp.y < 0) physics.crashed = true; // Upside down
+        }
+
+        // 4. Update Battery
+        const powerDraw = (totalThrust / CONFIG.maxThrust);
+        physics.battery -= CONFIG.batteryDrainPerSec * (0.2 + powerDraw) * dt;
+        if(physics.battery < 0) physics.battery = 0;
+
+        // Apply state to Mesh
+        drone.position.copy(physics.pos);
+        drone.quaternion.copy(physics.quat);
+    }
+
+    function checkCollisions() {
+        if(physics.crashed) return;
+        
+        // Simple sphere collision for drone
+        const droneRad = 0.5;
+        const droneCenter = physics.pos.clone().add(new THREE.Vector3(0, 0.1, 0));
+
+        // Obstacles (Trees)
+        for(let m of obstaclesMeshes) {
+            // Box collision is better for trunks
+            const box = new THREE.Box3().setFromObject(m);
+            if(box.distanceToPoint(droneCenter) < droneRad) {
+                physics.crashed = true;
+                physics.vel.multiplyScalar(-0.5); // Bounce
+                document.getElementById('crash-msg').style.display = 'block';
+                return;
+            }
+        }
+
+        // Cars
+        for(let c of carsMeshes) {
+            const dist = c.position.distanceTo(droneCenter);
+            if(dist < 1.0) {
+                physics.crashed = true;
+                physics.vel.y = 5; // Kick up
+                document.getElementById('crash-msg').style.display = 'block';
+                return;
+            }
+        }
+    }
+
+    // Camera Logic
+    const camSmoother = new THREE.Vector3();
+    function updateCamera() {
+        const dronePos = drone.position;
+        const droneYaw = new THREE.Euler().setFromQuaternion(drone.quaternion, 'YXZ').y;
+        
+        let targetPos = new THREE.Vector3();
+        let lookAtPos = dronePos.clone();
+
+        if(cameraMode === 0) { // Chase (Action)
+            // Calculate offset based on yaw
+            const offset = new THREE.Vector3(0, 1.5, 4);
+            offset.applyAxisAngle(new THREE.Vector3(0,1,0), droneYaw);
+            targetPos.copy(dronePos).add(offset);
+            
+            // Lag effect
+            camSmoother.lerp(targetPos, 0.1);
+            camera.position.copy(camSmoother);
+            camera.lookAt(dronePos.x, dronePos.y + 0.5, dronePos.z);
+        } 
+        else if(cameraMode === 1) { // Top Down
+            targetPos.set(dronePos.x, dronePos.y + 20, dronePos.z);
+            camera.position.lerp(targetPos, 0.1);
+            camera.lookAt(dronePos);
+        }
+        else if(cameraMode === 2) { // FPV-ish
+            const offset = new THREE.Vector3(0, 0.2, 0.3); // Front of drone
+            offset.applyQuaternion(drone.quaternion);
+            camera.position.copy(dronePos).add(offset);
+            
+            // Look slightly ahead
+            const forward = new THREE.Vector3(0, 0, -5);
+            forward.applyQuaternion(drone.quaternion);
+            camera.lookAt(dronePos.clone().add(forward));
+        }
+    }
+
+    // AI Traffic
+    function updateCars(dt) {
+        carsMeshes.forEach(car => {
+            const data = car.userData;
+            const dir = new THREE.Vector3().subVectors(data.target, car.position);
+            dir.y = 0;
+            const dist = dir.length();
+            
+            if(dist < 2) {
+                // New target
+                data.target.set((Math.random()-0.5)*350, 0, (Math.random()-0.5)*350);
+            } else {
+                dir.normalize();
+                car.position.addScaledVector(dir, data.speed * dt);
+                
+                // Rotate car
+                const angle = Math.atan2(dir.x, dir.z);
+                let rotDiff = angle - car.rotation.y;
+                // Normalize angle
+                while(rotDiff > Math.PI) rotDiff -= Math.PI*2;
+                while(rotDiff < -Math.PI) rotDiff += Math.PI*2;
+                car.rotation.y += rotDiff * data.turnSpeed * dt;
+            }
+            // Keep on ground
+            car.position.y = 0.3;
+        });
+    }
+
+    // Main Loop
+    const clock = new THREE.Clock();
+    function animate() {
+        requestAnimationFrame(animate);
+        const dt = Math.min(clock.getDelta(), 0.1); // Cap dt
+
+        updateInputs(dt);
+        updatePhysics(dt);
+        checkCollisions();
+        updateCars(dt);
+        updateCamera();
+
+        // Visuals: Props
+        const rpm = physics.crashed ? 0 : (20 + inputs.throttle * 50);
+        props.forEach(p => {
+            p.mesh.rotation.y += p.dir * rpm * dt * 10;
+            p.mesh.visible = true; // Could add blur here
+        });
+
+        // HUD Updates
+        document.getElementById('alt').innerText = (physics.pos.y - 0.2).toFixed(1);
+        document.getElementById('speed').innerText = physics.vel.length().toFixed(1);
+        document.getElementById('vspeed').innerText = physics.vel.y.toFixed(1);
+        document.getElementById('batteryTxt').innerText = Math.floor(physics.battery) + "%";
+        document.getElementById('batteryBar').style.width = physics.battery + "%";
+        
+        // Debug
+        const euler = new THREE.Euler().setFromQuaternion(physics.quat, 'YXZ');
+        document.getElementById('debug').innerHTML = 
+            `Pitch:${(euler.x*57).toFixed(0)}° Roll:${(euler.z*57).toFixed(0)}°<br>` +
+            (CONFIG.windEnabled ? "<span style='color:#f88'>Wind: ON</span>" : "Wind: OFF");
+
+        renderer.render(scene, camera);
+    }
+    
+    // UI Sliders for Tuning (Optional, kept from original style)
+    const ctrl = document.getElementById('controls');
+    ctrl.innerHTML = `
+        <div style="color:#fff;font-size:13px;font-weight:600;margin-bottom:6px">Physics Tuning</div>
+        <div style="font-size:12px">Max Speed <input id="sp" type="range" min="5" max="25" value="${CONFIG.maxAscentSpeed}"></div>
+        <div style="font-size:12px">Sensitivity <input id="se" type="range" min="1" max="10" value="${CONFIG.inputSensitivity}"></div>
+    `;
+    document.getElementById('sp').oninput = (e) => CONFIG.maxAscentSpeed = parseFloat(e.target.value);
+    document.getElementById('se').oninput = (e) => CONFIG.inputSensitivity = parseFloat(e.target.value);
+
+    // Resize
+    window.addEventListener('resize', ()=>{
+        camera.aspect = innerWidth/innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(innerWidth, innerHeight);
+    });
+
+    animate();
+    </script>
+</body>
+</html>

@@ -1,0 +1,681 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Tactical Missile Defense</title>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', monospace; }
+        canvas { display: block; width: 100vw; height: 100vh; outline: none; }
+        
+        #hud {
+            position: absolute;
+            top: 20px; left: 20px;
+            color: #00ffcc;
+            pointer-events: none;
+            user-select: none;
+        }
+        .hud-line { text-shadow: 0 0 5px #00ffcc; margin-bottom: 5px; font-size: 14px; }
+        
+        #controls {
+            position: absolute;
+            bottom: 30px; left: 50%;
+            transform: translateX(-50%);
+            display: flex; gap: 20px;
+            pointer-events: auto;
+        }
+        
+        button {
+            background: rgba(0, 20, 20, 0.6);
+            border: 1px solid #00ffcc;
+            color: #00ffcc;
+            padding: 12px 40px;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 16px;
+            cursor: pointer;
+            text-transform: uppercase;
+            backdrop-filter: blur(5px);
+            transition: 0.2s;
+        }
+        button:hover { background: #00ffcc; color: #000; box-shadow: 0 0 15px #00ffcc; }
+        button:disabled { border-color: #444; color: #555; background: transparent; cursor: not-allowed; box-shadow: none; }
+
+        #lock-indicator {
+            position: absolute;
+            width: 60px; height: 60px;
+            border: 2px solid #ff3333;
+            box-shadow: 0 0 10px #ff3333;
+            transform: translate(-50%, -50%);
+            display: none;
+            pointer-events: none;
+            transition: all 0.1s;
+        }
+        #lock-text {
+            position: absolute;
+            top: -20px; left: 50%;
+            transform: translateX(-50%);
+            color: #ff3333; font-size: 12px; font-weight: bold;
+        }
+    </style>
+    <!-- Import Three.js from CDN -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+<body>
+
+    <div id="hud">
+        <div class="hud-line">SYSTEM: ONLINE</div>
+        <div class="hud-line">RADAR: 3D TRACKING</div>
+        <div class="hud-line">TARGETS: <span id="target-count">0</span></div>
+    </div>
+
+    <!-- HTML Overlay for the Lock Reticle -->
+    <div id="lock-indicator">
+        <div id="lock-text">LOCK</div>
+    </div>
+
+    <div id="controls">
+        <button id="fire-btn" disabled>FIRE</button>
+        <button id="reset-btn">RESET</button>
+    </div>
+
+<script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // --- GLOBALS ---
+    let scene, camera, renderer, controls;
+    let clock = new THREE.Clock();
+    let targets = [];
+    let missiles = [];
+    let particles = [];
+    let selectedTarget = null;
+    
+    // Raycaster for clicking
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    // Textures (Generated procedurally to avoid external assets)
+    const smokeTexture = createSmokeTexture();
+    const glowTexture = createGlowTexture();
+
+    // DOM Elements
+    const fireBtn = document.getElementById('fire-btn');
+    const resetBtn = document.getElementById('reset-btn');
+    const lockInd = document.getElementById('lock-indicator');
+    const targetCount = document.getElementById('target-count');
+
+    // --- SETUP ---
+    function init() {
+        // Scene
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x050508);
+        scene.fog = new THREE.FogExp2(0x050508, 0.002);
+
+        // Camera
+        camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 1000);
+        camera.position.set(0, 40, 100);
+
+        // Renderer
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // Controls
+        controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2 - 0.1; // Don't go below ground
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0x404040, 1.5); // Soft white light
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+        dirLight.position.set(50, 100, 50);
+        dirLight.castShadow = true;
+        dirLight.shadow.camera.top = 100;
+        dirLight.shadow.camera.bottom = -100;
+        dirLight.shadow.camera.left = -100;
+        dirLight.shadow.camera.right = 100;
+        dirLight.shadow.mapSize.width = 2048;
+        dirLight.shadow.mapSize.height = 2048;
+        scene.add(dirLight);
+
+        // Environment
+        createGround();
+        createLauncher();
+        spawnTargets();
+
+        // Event Listeners
+        window.addEventListener('resize', onWindowResize);
+        window.addEventListener('pointerdown', onPointerDown);
+        fireBtn.addEventListener('click', fireMissile);
+        resetBtn.addEventListener('click', resetSim);
+
+        animate();
+    }
+
+    function createGround() {
+        // Grid Helper
+        const grid = new THREE.GridHelper(400, 40, 0x00ffcc, 0x112233);
+        grid.position.y = 0.1;
+        scene.add(grid);
+
+        // Solid floor for shadows
+        const geometry = new THREE.PlaneGeometry(1000, 1000);
+        const material = new THREE.MeshStandardMaterial({ 
+            color: 0x080808, 
+            roughness: 0.8,
+            metalness: 0.2
+        });
+        const plane = new THREE.Mesh(geometry, material);
+        plane.rotation.x = -Math.PI / 2;
+        plane.receiveShadow = true;
+        scene.add(plane);
+    }
+
+    function createLauncher() {
+        // Silo/Truck base
+        const geometry = new THREE.BoxGeometry(10, 2, 14);
+        const material = new THREE.MeshStandardMaterial({ color: 0x333333 });
+        const base = new THREE.Mesh(geometry, material);
+        base.position.y = 1;
+        base.castShadow = true;
+        scene.add(base);
+
+        // Tubes
+        for(let i=-1; i<=1; i+=2) {
+            const tubeGeo = new THREE.CylinderGeometry(2, 2, 10, 16);
+            const tubeMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+            const tube = new THREE.Mesh(tubeGeo, tubeMat);
+            tube.rotation.x = -Math.PI/2; // Lay flat? No, let's make it vertical launch
+            tube.position.set(i * 3, 5, 0);
+            tube.castShadow = true;
+            // scene.add(tube); // Keep it simple: hidden silo
+        }
+        
+        // Hatch
+        const hatchGeo = new THREE.CircleGeometry(5, 32);
+        const hatchMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+        const hatch = new THREE.Mesh(hatchGeo, hatchMat);
+        hatch.rotation.x = -Math.PI/2;
+        hatch.position.y = 0.2;
+        scene.add(hatch);
+    }
+
+    function spawnTargets() {
+        for(let i=0; i<4; i++) {
+            targets.push(new Target());
+        }
+    }
+
+    // --- CLASSES ---
+
+    class Target {
+        constructor() {
+            this.active = true;
+            
+            // Visuals
+            const geo = new THREE.OctahedronGeometry(2, 0);
+            const mat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0x444444, roughness: 0.2, metalness: 0.8 });
+            this.mesh = new THREE.Mesh(geo, mat);
+            this.mesh.castShadow = true;
+            
+            // Engine glow
+            const glowGeo = new THREE.SphereGeometry(1);
+            const glowMat = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+            this.engine = new THREE.Mesh(glowGeo, glowMat);
+            this.engine.position.z = 2; // Behind
+            this.engine.scale.set(0.5, 0.5, 0.5);
+            this.mesh.add(this.engine);
+
+            // Random Position
+            const x = (Math.random() - 0.5) * 150;
+            const z = (Math.random() - 0.5) * 100 - 50; // Keep somewhat in front
+            const y = Math.random() * 40 + 30;
+            this.mesh.position.set(x, y, z);
+
+            scene.add(this.mesh);
+
+            // Movement data
+            this.baseY = y;
+            this.timeOffset = Math.random() * 100;
+            this.speed = Math.random() * 0.2 + 0.1;
+            this.dir = Math.random() > 0.5 ? 1 : -1;
+        }
+
+        update(dt, time) {
+            if(!this.active) return;
+
+            // Hover
+            this.mesh.position.y = this.baseY + Math.sin(time + this.timeOffset) * 5;
+            
+            // Patrol
+            this.mesh.position.x += this.speed * this.dir;
+            if(this.mesh.position.x > 100 || this.mesh.position.x < -100) this.dir *= -1;
+
+            // Rotate visual
+            this.mesh.rotation.y += dt;
+            this.mesh.rotation.z = Math.sin(time * 2) * 0.2;
+        }
+
+        destroy() {
+            this.active = false;
+            scene.remove(this.mesh);
+            createExplosion(this.mesh.position, 0xffaa00);
+        }
+    }
+
+    class Missile {
+        constructor(target) {
+            this.target = target;
+            this.active = true;
+            this.phase = 'eject'; // eject, tip, track
+            this.timer = 0;
+
+            // Create Mesh
+            this.container = new THREE.Group();
+            
+            // Body
+            const bodyGeo = new THREE.CylinderGeometry(0.6, 0.6, 6, 12);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, metalness: 0.5 });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 0; // Center
+            
+            // Nose
+            const noseGeo = new THREE.ConeGeometry(0.6, 1.5, 12);
+            const noseMat = new THREE.MeshStandardMaterial({ color: 0xcc0000 });
+            const nose = new THREE.Mesh(noseGeo, noseMat);
+            nose.position.y = 3.75;
+            
+            // Fins
+            const finGeo = new THREE.BoxGeometry(0.1, 1, 2);
+            const finMat = new THREE.MeshStandardMaterial({ color: 0x333333 });
+            const fin1 = new THREE.Mesh(finGeo, finMat); fin1.position.y = -2.5;
+            const fin2 = fin1.clone(); fin2.rotation.y = Math.PI/2;
+            
+            this.container.add(body, nose, fin1, fin2);
+            
+            // Engine Light (Initially off)
+            this.light = new THREE.PointLight(0xffaa00, 0, 50);
+            this.light.position.y = -3;
+            this.container.add(this.light);
+
+            this.container.position.set(0, 0, 0); // Start at launch pad
+            this.container.castShadow = true;
+            scene.add(this.container);
+
+            // Physics
+            this.velocity = new THREE.Vector3(0, 35, 0); // Strong pop UP
+            this.quaternion = new THREE.Quaternion();
+            
+            // Tip over settings
+            this.tipAxis = new THREE.Vector3();
+            this.calcTipDirection();
+        }
+
+        calcTipDirection() {
+            // Find vector to target
+            const start = this.container.position.clone();
+            const end = this.target.mesh.position.clone();
+            const dir = end.sub(start).normalize();
+            
+            // Cross product of UP (0,1,0) and Dir gives us the axis to rotate around
+            this.tipAxis.crossVectors(new THREE.Vector3(0, 1, 0), dir).normalize();
+        }
+
+        update(dt) {
+            if(!this.active) return;
+            this.timer += dt;
+
+            // --- PHASE 1: COLD EJECTION ---
+            if(this.phase === 'eject') {
+                // Apply Gravity + Drag
+                this.velocity.y -= 30 * dt; // Gravity
+                this.velocity.multiplyScalar(0.95); // Drag
+                
+                // Move
+                this.container.position.addScaledVector(this.velocity, dt);
+
+                // Small gas puff at bottom
+                if(Math.random() > 0.5) {
+                    spawnParticle(this.container.position.clone().add(new THREE.Vector3(0,-3,0)), 'gas');
+                }
+
+                // If stopped rising, start tip over
+                if(this.velocity.y < 2.0) {
+                    this.phase = 'tip';
+                    this.timer = 0;
+                }
+            }
+            // --- PHASE 2: TIP OVER (Lateral Thrusters) ---
+            else if(this.phase === 'tip') {
+                // Gravity still applies (falling slightly)
+                this.velocity.y -= 9.8 * dt;
+                this.container.position.addScaledVector(this.velocity, dt);
+
+                // Rotate Mesh (Visual)
+                // Rotate around the calculated axis
+                const rotSpeed = 2.0 * dt;
+                this.container.rotateOnWorldAxis(this.tipAxis, rotSpeed);
+
+                // Emitter: Lateral Thrusters (Gas Puffs from nose area)
+                // Position is near the nose, shooting OUT
+                if(this.timer % 0.05 < 0.02) {
+                    // Find position of nose
+                    const nosePos = new THREE.Vector3(0, 3, 0).applyMatrix4(this.container.matrixWorld);
+                    // Emit
+                    spawnParticle(nosePos, 'puff');
+                }
+
+                // Ignite after set time or angle
+                // Check angle with UP
+                const up = new THREE.Vector3(0,1,0).applyQuaternion(this.container.quaternion);
+                if(up.y < 0.7) { // 45 degrees approx
+                    this.ignite();
+                }
+            }
+            // --- PHASE 3: TRACKING ---
+            else if(this.phase === 'track') {
+                if(this.target && this.target.active) {
+                    // Guidance Logic
+                    const targetPos = this.target.mesh.position.clone();
+                    const myPos = this.container.position.clone();
+                    
+                    // Predict
+                    const dist = myPos.distanceTo(targetPos);
+                    // Simple lead: assume target moves straight
+                    // Since targets move simply on X, let's just aim at them directly for robust demo
+                    
+                    // Rotation (Steering)
+                    // Create a dummy matrix to look at target
+                    const dummy = new THREE.Object3D();
+                    dummy.position.copy(myPos);
+                    dummy.lookAt(targetPos);
+                    // Rotate 90 deg because Cylinder is Y-up but lookAt expects Z-forward
+                    dummy.rotateX(Math.PI/2); 
+
+                    // Smoothly rotate missile towards target
+                    this.container.quaternion.slerp(dummy.quaternion, 4.0 * dt);
+                }
+
+                // Thrust: Move forward along the missile's local Y axis (Up)
+                const thrustDir = new THREE.Vector3(0, 1, 0).applyQuaternion(this.container.quaternion);
+                const speed = 60;
+                
+                this.container.position.add(thrustDir.multiplyScalar(speed * dt));
+
+                // Particles: Exhaust
+                const tailPos = new THREE.Vector3(0, -3, 0).applyMatrix4(this.container.matrixWorld);
+                spawnParticle(tailPos, 'fire');
+                spawnParticle(tailPos, 'smoke');
+
+                // Check Hit
+                if(this.target.active && this.container.position.distanceTo(this.target.mesh.position) < 4) {
+                    this.explode();
+                }
+
+                // Check Ground Collision or Out of Bounds
+                if(this.container.position.y < 0) {
+                    this.active = false;
+                    scene.remove(this.container);
+                    createExplosion(this.container.position, 0xffff00);
+                }
+            }
+        }
+
+        ignite() {
+            this.phase = 'track';
+            this.light.intensity = 2;
+            
+            // Explosion at launch position to simulate ignition kick
+            createIgnitionCloud(this.container.position);
+        }
+
+        explode() {
+            this.active = false;
+            this.target.destroy();
+            scene.remove(this.container);
+            createExplosion(this.container.position, 0xff0000);
+            
+            // Reset selection
+            selectedTarget = null;
+            lockInd.style.display = 'none';
+        }
+    }
+
+    // --- PARTICLES ---
+
+    function createSmokeTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 32; canvas.height = 32;
+        const ctx = canvas.getContext('2d');
+        const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+        grad.addColorStop(0, 'rgba(255,255,255,1)');
+        grad.addColorStop(1, 'rgba(255,255,255,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0,0,32,32);
+        const tex = new THREE.CanvasTexture(canvas);
+        return tex;
+    }
+
+    function createGlowTexture() {
+        const canvas = document.createElement('canvas');
+        canvas.width = 32; canvas.height = 32;
+        const ctx = canvas.getContext('2d');
+        const grad = ctx.createRadialGradient(16, 16, 0, 16, 16, 16);
+        grad.addColorStop(0, 'rgba(255,200,100,1)');
+        grad.addColorStop(0.5, 'rgba(255,100,0,0.5)');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(0,0,32,32);
+        return new THREE.CanvasTexture(canvas);
+    }
+
+    function spawnParticle(pos, type) {
+        let mat, size, life;
+        
+        if(type === 'smoke') {
+            mat = new THREE.SpriteMaterial({ map: smokeTexture, color: 0x888888, transparent: true, opacity: 0.4 });
+            size = 3 + Math.random();
+            life = 1.0;
+        } else if(type === 'gas') {
+            mat = new THREE.SpriteMaterial({ map: smokeTexture, color: 0xaaaaaa, transparent: true, opacity: 0.2 });
+            size = 4;
+            life = 2.0;
+        } else if(type === 'puff') {
+            mat = new THREE.SpriteMaterial({ map: smokeTexture, color: 0xffffff, transparent: true, opacity: 0.5 });
+            size = 1;
+            life = 0.5;
+        } else if(type === 'fire') {
+            mat = new THREE.SpriteMaterial({ map: glowTexture, color: 0xffaa00, transparent: true, blending: THREE.AdditiveBlending });
+            size = 4;
+            life = 0.2;
+        }
+
+        const sprite = new THREE.Sprite(mat);
+        sprite.position.copy(pos);
+        sprite.scale.set(size, size, 1);
+        scene.add(sprite);
+
+        particles.push({
+            mesh: sprite,
+            life: life,
+            maxLife: life,
+            type: type,
+            vel: new THREE.Vector3((Math.random()-0.5), (Math.random()-0.5), (Math.random()-0.5)).multiplyScalar(0.5)
+        });
+    }
+
+    function createIgnitionCloud(pos) {
+        // Big puff
+        for(let i=0; i<10; i++) {
+            const offset = new THREE.Vector3((Math.random()-0.5)*3, (Math.random()-0.5)*3, (Math.random()-0.5)*3);
+            spawnParticle(pos.clone().add(offset), 'gas');
+        }
+    }
+
+    function createExplosion(pos, color) {
+        // Flash light
+        const light = new THREE.PointLight(color, 5, 50);
+        light.position.copy(pos);
+        scene.add(light);
+        
+        // Remove light later
+        setTimeout(() => scene.remove(light), 200);
+
+        // Debris / Fire
+        for(let i=0; i<30; i++) {
+            const mat = new THREE.SpriteMaterial({ map: glowTexture, color: color, transparent: true, blending: THREE.AdditiveBlending });
+            const sprite = new THREE.Sprite(mat);
+            sprite.position.copy(pos);
+            const size = Math.random() * 5 + 5;
+            sprite.scale.set(size, size, 1);
+            scene.add(sprite);
+            
+            const vel = new THREE.Vector3((Math.random()-0.5), (Math.random()-0.5), (Math.random()-0.5)).normalize().multiplyScalar(Math.random()*20);
+
+            particles.push({
+                mesh: sprite,
+                life: 1.5,
+                maxLife: 1.5,
+                type: 'debris',
+                vel: vel
+            });
+        }
+    }
+
+    // --- MAIN LOOP ---
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        const dt = clock.getDelta();
+        const time = clock.getElapsedTime();
+
+        controls.update();
+
+        // Update Targets
+        let activeCount = 0;
+        targets.forEach(t => {
+            t.update(dt, time);
+            if(t.active) activeCount++;
+        });
+        targetCount.innerText = activeCount;
+
+        // Update Missiles
+        missiles.forEach((m, index) => {
+            m.update(dt);
+            if(!m.active) {
+                missiles.splice(index, 1);
+            }
+        });
+
+        // Update Particles
+        for(let i = particles.length - 1; i >= 0; i--) {
+            const p = particles[i];
+            p.life -= dt;
+            
+            p.mesh.position.add(p.vel);
+            
+            // Visual updates
+            if(p.type === 'smoke' || p.type === 'gas') {
+                p.mesh.scale.addScalar(dt * 3); // Expand
+                p.mesh.material.opacity = (p.life / p.maxLife) * 0.4;
+            } else {
+                p.mesh.material.opacity = p.life / p.maxLife;
+            }
+
+            if(p.life <= 0) {
+                scene.remove(p.mesh);
+                particles.splice(i, 1);
+            }
+        }
+
+        // Update Lock Indicator UI
+        if(selectedTarget && selectedTarget.active) {
+            // Project 3D position to 2D screen
+            const pos = selectedTarget.mesh.position.clone();
+            pos.project(camera);
+            
+            const x = (pos.x * 0.5 + 0.5) * window.innerWidth;
+            const y = (-(pos.y * 0.5) + 0.5) * window.innerHeight;
+
+            lockInd.style.display = 'block';
+            lockInd.style.left = `${x}px`;
+            lockInd.style.top = `${y}px`;
+            
+            fireBtn.disabled = false;
+        } else {
+            lockInd.style.display = 'none';
+            fireBtn.disabled = true;
+            selectedTarget = null;
+        }
+
+        renderer.render(scene, camera);
+    }
+
+    // --- INTERACTION ---
+
+    function onPointerDown(event) {
+        if(event.target.tagName === 'BUTTON') return; // Don't click through buttons
+
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        raycaster.setFromCamera(mouse, camera);
+
+        // Get meshes of active targets
+        const targetMeshes = targets.filter(t => t.active).map(t => t.mesh);
+        const intersects = raycaster.intersectObjects(targetMeshes);
+
+        if(intersects.length > 0) {
+            // Find the Target object that owns this mesh
+            const hitMesh = intersects[0].object;
+            selectedTarget = targets.find(t => t.mesh === hitMesh);
+        } else {
+            selectedTarget = null;
+        }
+    }
+
+    function fireMissile() {
+        if(selectedTarget && selectedTarget.active) {
+            missiles.push(new Missile(selectedTarget));
+        }
+    }
+
+    function resetSim() {
+        // Clear missiles
+        missiles.forEach(m => scene.remove(m.container));
+        missiles = [];
+        
+        // Clear targets
+        targets.forEach(t => scene.remove(t.mesh));
+        targets = [];
+
+        spawnTargets();
+        selectedTarget = null;
+    }
+
+    function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    }
+
+    // Start
+    init();
+
+</script>
+</body>
+</html>
