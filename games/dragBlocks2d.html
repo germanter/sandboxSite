@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Block Blast: Smooth & Silly 🤡</title>
+    <style>
+        :root {
+            --bg-color: #eef2f7;
+            --grid-bg: #cbd5e0;
+            --cell-empty: #edf2f7;
+            --ghost-color: rgba(0, 0, 0, 0.1);
+        }
+
+        body {
+            font-family: 'Comic Sans MS', 'Arial', sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            touch-action: none; /* Prevents scrolling while playing */
+        }
+
+        #ui {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+
+        #score-val { font-size: 40px; font-weight: 900; color: #2d3748; }
+        #msg { color: #718096; height: 20px; font-weight: bold; }
+
+        #game-container {
+            position: relative;
+            padding: 10px;
+            background: #a0aec0;
+            border-radius: 15px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(8, 42px);
+            grid-template-rows: repeat(8, 42px);
+            gap: 4px;
+        }
+
+        .cell {
+            width: 42px;
+            height: 42px;
+            background: var(--cell-empty);
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+            transition: background 0.1s;
+        }
+
+        .cell.ghost { background: #cbd5e0 !important; opacity: 0.5; }
+
+        #dock {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+            height: 120px;
+            align-items: center;
+        }
+
+        .dock-slot {
+            width: 100px;
+            height: 100px;
+            background: rgba(255,255,255,0.5);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: grab;
+        }
+
+        /* The block being dragged */
+        .dragging-container {
+            position: fixed;
+            pointer-events: none;
+            z-index: 1000;
+            display: grid;
+            gap: 4px;
+            transition: transform 0.05s linear;
+        }
+
+        .block-unit {
+            width: 42px;
+            height: 42px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: inset 0 -4px rgba(0,0,0,0.2);
+        }
+
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            z-index: 2000;
+        }
+
+        button {
+            padding: 12px 24px;
+            font-size: 20px;
+            background: #48bb78;
+            border: none;
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-top: 20px;
+        }
+
+        @keyframes explode {
+            0% { transform: scale(1); opacity: 1; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+        .clearing { animation: explode 0.3s forwards; }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div id="score-val">0</div>
+    <div id="msg">Drag a block!</div>
+</div>
+
+<div id="game-container">
+    <div id="grid"></div>
+</div>
+
+<div id="dock">
+    <div class="dock-slot" onmousedown="startDrag(event, 0)" ontouchstart="startDrag(event, 0)"></div>
+    <div class="dock-slot" onmousedown="startDrag(event, 1)" ontouchstart="startDrag(event, 1)"></div>
+    <div class="dock-slot" onmousedown="startDrag(event, 2)" ontouchstart="startDrag(event, 2)"></div>
+</div>
+
+<div id="game-over" class="modal">
+    <h1>Oops! No more room! 😵</h1>
+    <h2 id="final-score">Score: 0</h2>
+    <button onclick="resetGame()">Play Again</button>
+</div>
+
+<script>
+    const GRID_SIZE = 8;
+    const CELL_SIZE = 46; // 42px + 4px gap
+    const COLORS = ['#FF595E', '#FFCA3A', '#8AC926', '#1982C4', '#6A4C93', '#FF924C'];
+    const FACES = ['😊', '🤩', '🤪', '😎', '🥳', '🐱', '🤖'];
+    
+    let grid = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(null));
+    let score = 0;
+    let dockShapes = [null, null, null];
+    let activeDrag = null;
+
+    const SHAPES = [
+        { name: 'dot', dots: [[0,0]] },
+        { name: 'i2', dots: [[0,0], [1,0]] },
+        { name: 'i3', dots: [[0,0], [1,0], [2,0]] },
+        { name: 'h2', dots: [[0,0], [0,1]] },
+        { name: 'h3', dots: [[0,0], [0,1], [0,2]] },
+        { name: 'square', dots: [[0,0], [0,1], [1,0], [1,1]] },
+        { name: 'L', dots: [[0,0], [1,0], [2,0], [2,1]] },
+        { name: 'T', dots: [[0,0], [0,1], [0,2], [1,1]] }
+    ];
+
+    function init() {
+        const gridEl = document.getElementById('grid');
+        gridEl.innerHTML = '';
+        for (let r = 0; r < GRID_SIZE; r++) {
+            for (let c = 0; c < GRID_SIZE; c++) {
+                const cell = document.createElement('div');
+                cell.className = 'cell';
+                cell.id = `cell-${r}-${c}`;
+                gridEl.appendChild(cell);
+            }
+        }
+        spawnDock();
+    }
+
+    function spawnDock() {
+        const slots = document.querySelectorAll('.dock-slot');
+        slots.forEach((slot, i) => {
+            if (!dockShapes[i]) {
+                const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+                const color = COLORS[Math.floor(Math.random() * COLORS.length)];
+                const face = FACES[Math.floor(Math.random() * FACES.length)];
+                dockShapes[i] = { ...shape, color, face };
+                renderShapeInSlot(slot, dockShapes[i]);
+            }
+        });
+        checkLoss();
+    }
+
+    function renderShapeInSlot(slot, shapeObj) {
+        slot.innerHTML = '';
+        const container = document.createElement('div');
+        container.style.display = 'grid';
+        container.style.gap = '2px';
+        container.style.transform = 'scale(0.7)';
+        
+        const rows = Math.max(...shapeObj.dots.map(d => d[0])) + 1;
+        const cols = Math.max(...shapeObj.dots.map(d => d[1])) + 1;
+        container.style.gridTemplateRows = `repeat(${rows}, 25px)`;
+        container.style.gridTemplateColumns = `repeat(${cols}, 25px)`;
+
+        shapeObj.dots.forEach(d => {
+            const b = document.createElement('div');
+            b.style.width = '25px';
+            b.style.height = '25px';
+            b.style.background = shapeObj.color;
+            b.style.borderRadius = '3px';
+            b.style.gridRow = d[0] + 1;
+            b.style.gridColumn = d[1] + 1;
+            container.appendChild(b);
+        });
+        slot.appendChild(container);
+    }
+
+    function startDrag(e, index) {
+        if (!dockShapes[index]) return;
+        e.preventDefault();
+        
+        const shapeObj = dockShapes[index];
+        const touch = e.touches ? e.touches[0] : e;
+        
+        const dragEl = document.createElement('div');
+        dragEl.className = 'dragging-container';
+        
+        const rows = Math.max(...shapeObj.dots.map(d => d[0])) + 1;
+        const cols = Math.max(...shapeObj.dots.map(d => d[1])) + 1;
+        dragEl.style.gridTemplateRows = `repeat(${rows}, 42px)`;
+        dragEl.style.gridTemplateColumns = `repeat(${cols}, 42px)`;
+
+        shapeObj.dots.forEach(d => {
+            const b = document.createElement('div');
+            b.className = 'block-unit';
+            b.style.background = shapeObj.color;
+            b.style.gridRow = d[0] + 1;
+            b.style.gridColumn = d[1] + 1;
+            b.innerHTML = shapeObj.face;
+            dragEl.appendChild(b);
+        });
+
+        document.body.appendChild(dragEl);
+
+        activeDrag = {
+            el: dragEl,
+            index: index,
+            shape: shapeObj,
+            offsetX: (cols * 42) / 2,
+            offsetY: (rows * 42) + 20 // Lift block above finger
+        };
+
+        moveDrag(touch.clientX, touch.clientY);
+
+        const moveHandler = (me) => {
+            const mtouch = me.touches ? me.touches[0] : me;
+            moveDrag(mtouch.clientX, mtouch.clientY);
+        };
+
+        const upHandler = (ue) => {
+            const utouch = ue.changedTouches ? ue.changedTouches[0] : ue;
+            endDrag(utouch.clientX, utouch.clientY);
+            window.removeEventListener('mousemove', moveHandler);
+            window.removeEventListener('mouseup', upHandler);
+            window.removeEventListener('touchmove', moveHandler);
+            window.removeEventListener('touchend', upHandler);
+        };
+
+        window.addEventListener('mousemove', moveHandler);
+        window.addEventListener('mouseup', upHandler);
+        window.addEventListener('touchmove', moveHandler, { passive: false });
+        window.addEventListener('touchend', upHandler);
+    }
+
+    function moveDrag(x, y) {
+        if (!activeDrag) return;
+        activeDrag.el.style.left = (x - activeDrag.offsetX) + 'px';
+        activeDrag.el.style.top = (y - activeDrag.offsetY) + 'px';
+
+        clearGhosts();
+        const pos = getGridPos(x, y);
+        if (pos && canPlace(pos.r, pos.c, activeDrag.shape)) {
+            showGhost(pos.r, pos.c, activeDrag.shape);
+        }
+    }
+
+    function endDrag(x, y) {
+        if (!activeDrag) return;
+        const pos = getGridPos(x, y);
+        
+        if (pos && canPlace(pos.r, pos.c, activeDrag.shape)) {
+            placeShape(pos.r, pos.c, activeDrag.shape);
+            document.querySelectorAll('.dock-slot')[activeDrag.index].innerHTML = '';
+            dockShapes[activeDrag.index] = null;
+            
+            if (dockShapes.every(s => s === null)) spawnDock();
+            else checkLoss();
+        }
+
+        activeDrag.el.remove();
+        activeDrag = null;
+        clearGhosts();
+    }
+
+    function getGridPos(x, y) {
+        const gridEl = document.getElementById('grid');
+        const rect = gridEl.getBoundingClientRect();
+        // Calculate based on the "Ghost" position which is centered
+        const r = Math.round((y - activeDrag.offsetY - rect.top) / CELL_SIZE);
+        const c = Math.round((x - activeDrag.offsetX - rect.left) / CELL_SIZE);
+        
+        if (r >= 0 && r < GRID_SIZE && c >= 0 && c < GRID_SIZE) return { r, c };
+        return null;
+    }
+
+    function canPlace(r, c, shape) {
+        return shape.dots.every(d => {
+            const nr = r + d[0];
+            const nc = c + d[1];
+            return nr >= 0 && nr < GRID_SIZE && nc >= 0 && nc < GRID_SIZE && grid[nr][nc] === null;
+        });
+    }
+
+    function placeShape(r, c, shape) {
+        shape.dots.forEach(d => {
+            grid[r + d[0]][c + d[1]] = { color: shape.color, face: shape.face };
+        });
+        score += shape.dots.length * 10;
+        checkLines();
+        updateBoard();
+    }
+
+    function clearGhosts() {
+        document.querySelectorAll('.cell').forEach(c => c.classList.remove('ghost'));
+    }
+
+    function showGhost(r, c, shape) {
+        shape.dots.forEach(d => {
+            const el = document.getElementById(`cell-${r + d[0]}-${c + d[1]}`);
+            if (el) el.classList.add('ghost');
+        });
+    }
+
+    function checkLines() {
+        let fullRows = [];
+        let fullCols = [];
+
+        for (let r = 0; r < GRID_SIZE; r++) {
+            if (grid[r].every(cell => cell !== null)) fullRows.push(r);
+        }
+        for (let c = 0; c < GRID_SIZE; c++) {
+            let colMatch = true;
+            for (let r = 0; r < GRID_SIZE; r++) {
+                if (grid[r][c] === null) colMatch = false;
+            }
+            if (colMatch) fullCols.push(c);
+        }
+
+        if (fullRows.length > 0 || fullCols.length > 0) {
+            fullRows.forEach(r => {
+                for (let c = 0; c < GRID_SIZE; c++) grid[r][c] = null;
+            });
+            fullCols.forEach(c => {
+                for (let r = 0; r < GRID_SIZE; r++) grid[r][c] = null;
+            });
+            score += (fullRows.length + fullCols.length) * 100;
+            document.getElementById('msg').innerText = "WOW! AMAZING! 🔥";
+            setTimeout(() => { document.getElementById('msg').innerText = ""; }, 1000);
+        }
+        document.getElementById('score-val').innerText = score;
+    }
+
+    function updateBoard() {
+        for (let r = 0; r < GRID_SIZE; r++) {
+            for (let c = 0; c < GRID_SIZE; c++) {
+                const cellEl = document.getElementById(`cell-${r}-${c}`);
+                const data = grid[r][c];
+                if (data) {
+                    cellEl.style.background = data.color;
+                    cellEl.innerHTML = data.face;
+                    cellEl.style.boxShadow = 'inset 0 -4px rgba(0,0,0,0.2)';
+                } else {
+                    cellEl.style.background = '';
+                    cellEl.innerHTML = '';
+                    cellEl.style.boxShadow = '';
+                }
+            }
+        }
+    }
+
+    function checkLoss() {
+        const anyCanPlace = dockShapes.some(shape => {
+            if (!shape) return false;
+            for (let r = 0; r < GRID_SIZE; r++) {
+                for (let c = 0; c < GRID_SIZE; c++) {
+                    if (canPlace(r, c, shape)) return true;
+                }
+            }
+            return false;
+        });
+
+        if (!anyCanPlace && dockShapes.some(s => s !== null)) {
+            document.getElementById('game-over').style.display = 'flex';
+            document.getElementById('final-score').innerText = "Score: " + score;
+        }
+    }
+
+    function resetGame() {
+        grid = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(null));
+        score = 0;
+        dockShapes = [null, null, null];
+        document.getElementById('score-val').innerText = "0";
+        document.getElementById('game-over').style.display = 'none';
+        init();
+    }
+
+    init();
+</script>
+
+</body>
+</html>

@@ -78,6 +78,14 @@ const games = [
     border: "border-blue-200 hover:border-blue-400",
     btn: "bg-blue-600 hover:bg-blue-700",
     link: "/games//crazyImpulse.html"
+  },
+  {
+    title: "2D Drag Blocks",
+    color: "purple",
+    bg: "from-purple-50 to-purple-50",
+    border: "border-purple-200 hover:border-purple-400",
+    btn: "bg-purple-600 hover:bg-purple-700",
+    link: "/games//dragBlocks2d.html"
   }
 ];
 
