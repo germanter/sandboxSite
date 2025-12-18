@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Pendulum Simulation</title>
+    <style>
+        :root {
+            --bg-color: #f8fafc;
+            --panel-bg: #ffffff;
+            --accent: #6366f1;
+            --text-main: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+        }
+        body {
+            margin: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+            user-select: none;
+        }
+        #ui-bar {
+            background: var(--panel-bg);
+            border-bottom: 2px solid var(--border);
+            padding: 12px 20px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            z-index: 10;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .row { display: flex; align-items: center; gap: 8px; }
+        label {
+            font-size: 0.75rem;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+        input[type="range"] { width: 100px; accent-color: var(--accent); cursor: pointer; }
+        
+        .btn-container { display: flex; gap: 6px; }
+        button {
+            padding: 6px 14px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            background: var(--border);
+            font-size: 0.9rem;
+        }
+        button:hover { opacity: 0.9; transform: translateY(-1px); }
+        #start-btn { background: var(--accent); color: white; min-width: 70px; }
+        #reset-btn { background: #f43f5e; color: white; }
+        
+        #canvas-wrap {
+            flex: 1;
+            position: relative;
+            background: radial-gradient(circle at center, #ffffff 0%, #f1f5f9 100%);
+            cursor: default;
+        }
+        canvas { display: block; }
+        
+        #data-overlay {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(4px);
+            padding: 10px 15px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            font-family: monospace;
+            pointer-events: none;
+        }
+        .stat-val { font-weight: bold; color: var(--accent); }
+        .hint {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            background: rgba(255,255,255,0.6);
+            padding: 4px 12px;
+            border-radius: 20px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui-bar">
+    <div class="btn-container">
+        <button id="start-btn">Start</button>
+        <button id="step-btn">Step</button>
+        <button id="reset-btn">Reset</button>
+    </div>
+
+    <div class="control-group">
+        <label>Length: <span id="v-L">200</span></label>
+        <input type="range" id="p-L" min="50" max="400" value="200">
+    </div>
+
+    <div class="control-group">
+        <label>Gravity: <span id="v-g">9.8</span></label>
+        <input type="range" id="p-g" min="0" max="40" step="0.1" value="9.8">
+    </div>
+
+    <div class="control-group">
+        <label>Damping: <span id="v-b">0.02</span></label>
+        <input type="range" id="p-b" min="0" max="1" step="0.01" value="0.02">
+    </div>
+</div>
+
+<div id="canvas-wrap">
+    <div id="data-overlay">
+        <div>Angle: <span id="s-th" class="stat-val">0.0</span>°</div>
+        <div>Speed: <span id="s-om" class="stat-val">0.0</span> rad/s</div>
+    </div>
+    <div class="hint">Click and drag the ball to move the pendulum!</div>
+    <canvas id="simCanvas"></canvas>
+</div>
+
+<script>
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    const wrap = document.getElementById('canvas-wrap');
+
+    // Simulation State
+    let state = {
+        theta: 0, 
+        omega: 0,
+        t: 0,
+        running: false,
+        isDragging: false,
+        trail: [],
+        pivot: { x: 0, y: 100 }
+    };
+
+    const config = {
+        L: 200,
+        g: 9.8,
+        b: 0.02,
+        bobRadius: 20
+    };
+
+    function init() {
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Mouse/Touch Events
+        canvas.addEventListener('pointerdown', onPointerDown);
+        window.addEventListener('pointermove', onPointerMove);
+        window.addEventListener('pointerup', onPointerUp);
+
+        // UI Binding
+        const bind = (id, key, valId) => {
+            const el = document.getElementById(id);
+            el.addEventListener('input', (e) => {
+                config[key] = parseFloat(e.target.value);
+                if(valId) document.getElementById(valId).textContent = config[key];
+            });
+        };
+        bind('p-L', 'L', 'v-L');
+        bind('p-g', 'g', 'v-g');
+        bind('p-b', 'b', 'v-b');
+
+        document.getElementById('start-btn').onclick = () => {
+            state.running = !state.running;
+            document.getElementById('start-btn').textContent = state.running ? "Pause" : "Start";
+            document.getElementById('start-btn').style.background = state.running ? "#94a3b8" : "#6366f1";
+        };
+        document.getElementById('reset-btn').onclick = resetSim;
+        document.getElementById('step-btn').onclick = () => { state.running = false; stepPhysics(0.016); };
+
+        resetSim();
+        requestAnimationFrame(loop);
+    }
+
+    function resize() {
+        canvas.width = wrap.clientWidth;
+        canvas.height = wrap.clientHeight;
+        state.pivot.x = canvas.width / 2;
+    }
+
+    function getBobPos() {
+        return {
+            x: state.pivot.x + config.L * Math.sin(state.theta),
+            y: state.pivot.y + config.L * Math.cos(state.theta)
+        };
+    }
+
+    function onPointerDown(e) {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const bob = getBobPos();
+        
+        const dist = Math.sqrt((mx - bob.x)**2 + (my - bob.y)**2);
+        if (dist < config.bobRadius * 1.5) {
+            state.isDragging = true;
+            state.omega = 0;
+            canvas.style.cursor = 'grabbing';
+        }
+    }
+
+    function onPointerMove(e) {
+        const rect = canvas.getBoundingClientRect();
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+
+        if (state.isDragging) {
+            // Calculate angle based on mouse relative to pivot
+            const dx = mx - state.pivot.x;
+            const dy = my - state.pivot.y;
+            state.theta = Math.atan2(dx, dy);
+            state.omega = 0; // Keep stationary while dragging
+        } else {
+            // Hover effect
+            const bob = getBobPos();
+            const dist = Math.sqrt((mx - bob.x)**2 + (my - bob.y)**2);
+            canvas.style.cursor = dist < config.bobRadius * 1.5 ? 'grab' : 'default';
+        }
+    }
+
+    function onPointerUp() {
+        if (state.isDragging) {
+            state.isDragging = false;
+            canvas.style.cursor = 'grab';
+        }
+    }
+
+    function resetSim() {
+        // Init inputları kaldırıldığı için varsayılan olarak 45 dereceye resetliyoruz
+        state.theta = 45 * (Math.PI / 180);
+        state.omega = 0;
+        state.t = 0;
+        state.trail = [];
+        // Grafik verisi (state.history) tamamen kaldırıldı
+        updateStats();
+        
+        // Resetlendiğinde pause durumuna geçsin
+        state.running = false;
+        document.getElementById('start-btn').textContent = "Start";
+        document.getElementById('start-btn').style.background = "#6366f1";
+    }
+
+    function stepPhysics(dt) {
+        if (dt > 0.03) dt = 0.03;
+        if (state.isDragging) return;
+
+        // alpha = -(g/L) * sin(theta) - damping * omega
+        const lengthMeters = config.L / 100; 
+        const alpha = -(config.g / lengthMeters) * Math.sin(state.theta) - (config.b * state.omega);
+
+        // Semi-implicit Euler
+        state.omega += alpha * dt;
+        state.theta += state.omega * dt;
+        state.t += dt;
+
+        // Trail Logic
+        const bob = getBobPos();
+        state.trail.push(bob);
+        if (state.trail.length > 30) state.trail.shift();
+    }
+
+    function updateStats() {
+        document.getElementById('s-th').textContent = (state.theta * 180 / Math.PI).toFixed(1);
+        document.getElementById('s-om').textContent = state.omega.toFixed(2);
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        const bob = getBobPos();
+
+        // 1. Trail
+        if (state.trail.length > 1) {
+            ctx.beginPath();
+            ctx.lineWidth = 3;
+            for (let i = 0; i < state.trail.length; i++) {
+                const ratio = i / state.trail.length;
+                ctx.strokeStyle = `rgba(99, 102, 241, ${ratio * 0.4})`;
+                const p = state.trail[i];
+                if (i === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+            }
+            ctx.stroke();
+        }
+
+        // 2. String
+        ctx.beginPath();
+        ctx.moveTo(state.pivot.x, state.pivot.y);
+        ctx.lineTo(bob.x, bob.y);
+        ctx.strokeStyle = state.isDragging ? '#6366f1' : '#94a3b8';
+        ctx.lineWidth = state.isDragging ? 3 : 2;
+        ctx.stroke();
+
+        // 3. Pivot
+        ctx.beginPath();
+        ctx.arc(state.pivot.x, state.pivot.y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = '#1e293b';
+        ctx.fill();
+
+        // 4. Bob
+        const grad = ctx.createRadialGradient(bob.x-5, bob.y-5, 2, bob.x, bob.y, 20);
+        grad.addColorStop(0, state.isDragging ? '#a5b4fc' : '#818cf8');
+        grad.addColorStop(1, state.isDragging ? '#4338ca' : '#4f46e5');
+        
+        ctx.beginPath();
+        ctx.arc(bob.x, bob.y, config.bobRadius, 0, Math.PI * 2);
+        ctx.fillStyle = grad;
+        ctx.shadowBlur = state.isDragging ? 15 : 5;
+        ctx.shadowColor = 'rgba(0,0,0,0.2)';
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        
+        // drawGraph() fonksiyonu ve çağrısı kaldırıldı.
+    }
+
+    let lastT = 0;
+    function loop(timestamp) {
+        if (!lastT) lastT = timestamp;
+        const dt = (timestamp - lastT) / 1000;
+        lastT = timestamp;
+
+        if (state.running || state.isDragging) {
+            const steps = 4;
+            for(let i=0; i<steps; i++) stepPhysics(dt / steps);
+            updateStats();
+        }
+
+        draw();
+        requestAnimationFrame(loop);
+    }
+
+    init();
+</script>
+</body>
+</html>
