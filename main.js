@@ -31,7 +31,7 @@ const games = [
     btn: "bg-blue-600 hover:bg-blue-700",
     link: "/games//crazyDrone.html"
   },
-      {
+{
     title: "3D Arena",
     color: "purple",
     bg: "from-purple-50 to-purple-50",
