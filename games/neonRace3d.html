@@ -1,0 +1,253 @@
+İsteğin üzerine kodun işleyişine veya yapısına hiç dokunmadan, sadece ekrandaki **"STAY FABULOUS, GARY."** yazısını kaldırdım.
+
+Güncellenmiş kod aşağıdadır:
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GARY RIDER: ULTRA-NEON</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #0b0014; font-family: 'Arial Black', sans-serif; }
+        #ui {
+            position: absolute; top: 30px; left: 30px; color: #fff;
+            text-shadow: 0 0 10px #0ff, 0 0 20px #0ff; user-select: none; pointer-events: none;
+        }
+        #score { font-size: 80px; line-height: 0.8em; margin-bottom: 10px; font-style: italic; }
+        #speedo { font-size: 20px; color: #ff00ff; text-shadow: 0 0 10px #ff00ff; }
+        #msg { font-size: 16px; margin-top: 10px; color: #fff; opacity: 0.8; letter-spacing: 2px; }
+        
+        #game-over {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.9); color: #fff; padding: 60px;
+            text-align: center; display: none; border: 4px solid #ff00ff;
+            box-shadow: 0 0 100px #ff00ff; border-radius: 40px; z-index: 100;
+        }
+        button {
+            padding: 20px 50px; font-size: 24px; background: #0ff; color: #000;
+            border: none; cursor: pointer; border-radius: 10px; font-weight: 900;
+            margin-top: 30px; box-shadow: 0 0 20px #0ff; transition: 0.2s;
+        }
+        button:hover { transform: scale(1.1); background: #fff; }
+    </style>
+</head>
+<body>
+
+    <div id="ui">
+        <div id="score">0</div>
+        <div id="speedo">NEON DRIVE: <span id="speed-val">0</span>%</div>
+        <div id="msg"></div>
+    </div>
+
+    <div id="game-over">
+        <h1 style="color: #ff00ff; font-size: 60px; margin: 0;">WASTED</h1>
+        <p id="final-score" style="font-size: 24px; color: #0ff;"></p>
+        <button onclick="location.reload()">TRY AGAIN</button>
+    </div>
+
+    <script type="importmap">
+        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- SETUP ---
+        let speed = 0.7;
+        let score = 0;
+        let isGameOver = false;
+        let obstacleTimer = 0; // Timer to prevent "walls" of cars
+        const obstacles = [];
+        const scenery = [];
+
+        const scene = new THREE.Scene();
+        // Slightly lightened background/fog for better visibility
+        scene.background = new THREE.Color(0x0a0012);
+        scene.fog = new THREE.Fog(0x0a0012, 20, 120);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.toneMapping = THREE.ReinhardToneMapping;
+        document.body.appendChild(renderer.domElement);
+
+        // --- LIGHTING (Enhanced Brightness) ---
+        const pLight = new THREE.PointLight(0x00ffff, 15, 60);
+        pLight.position.set(0, 8, -5);
+        scene.add(pLight);
+        
+        // Boosted ambient light for overall brightness
+        scene.add(new THREE.AmbientLight(0xff00ff, 0.6));
+        
+        // Added a directional light to help define shapes
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
+        dirLight.position.set(0, 10, 5);
+        scene.add(dirLight);
+
+        // --- THE RETRO SUN ---
+        const sunGeo = new THREE.CircleGeometry(40, 32);
+        const sunMat = new THREE.MeshBasicMaterial({ color: 0xff0080 });
+        const sun = new THREE.Mesh(sunGeo, sunMat);
+        sun.position.set(0, 10, -110);
+        scene.add(sun);
+
+        // --- ROAD WITH REFLECTIONS ---
+        const roadGeo = new THREE.PlaneGeometry(14, 2000);
+        const roadMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1, metalness: 0.8 });
+        const road = new THREE.Mesh(roadGeo, roadMat);
+        road.rotation.x = -Math.PI / 2;
+        scene.add(road);
+
+        const grid = new THREE.GridHelper(1000, 60, 0xff00ff, 0x440044);
+        grid.position.y = 0.05;
+        scene.add(grid);
+
+        // --- GARY'S UPGRADED MOWER ---
+        const mower = new THREE.Group();
+        const mowerBody = new THREE.Mesh(
+            new THREE.BoxGeometry(1.5, 0.7, 2.5),
+            new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 0.4 })
+        );
+        mowerBody.position.y = 0.5;
+        mower.add(mowerBody);
+
+        // Neon Underglow
+        const glow = new THREE.PointLight(0x00ffff, 8, 12);
+        glow.position.set(0, 0.1, 0);
+        mower.add(glow);
+
+        // Wheels with Neon Rims
+        const wheelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.5, 16);
+        const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0x00ffff, emissiveIntensity: 0.8 });
+        [[-0.8,0.4,1], [0.8,0.4,1], [-0.8,0.4,-1], [0.8,0.4,-1]].forEach(p => {
+            const w = new THREE.Mesh(wheelGeo, wheelMat);
+            w.rotation.z = Math.PI/2;
+            w.position.set(p[0], p[1], p[2]);
+            mower.add(w);
+        });
+
+        scene.add(mower);
+        mower.position.z = -5;
+
+        // --- SCENERY: BUILDINGS WITH WINDOWS ---
+        function createBuilding() {
+            const h = 15 + Math.random() * 25;
+            const w = 5 + Math.random() * 5;
+            const group = new THREE.Group();
+            
+            const core = new THREE.Mesh(
+                new THREE.BoxGeometry(w, h, w),
+                new THREE.MeshStandardMaterial({ color: 0x050505 })
+            );
+            group.add(core);
+
+            for(let i = 0; i < 5; i++) {
+                const win = new THREE.Mesh(
+                    new THREE.PlaneGeometry(w + 0.1, 0.5),
+                    new THREE.MeshBasicMaterial({ color: Math.random() > 0.5 ? 0x00ffff : 0xff00ff })
+                );
+                win.position.set(0, (Math.random()-0.5) * h, w/2 + 0.01);
+                group.add(win);
+            }
+
+            const isLeft = Math.random() > 0.5;
+            group.position.set(isLeft ? -18 - Math.random()*10 : 18 + Math.random()*10, h/2, -150);
+            scene.add(group);
+            scenery.push(group);
+        }
+
+        // --- OBSTACLES (Cyber Cars) ---
+        function spawnObstacle() {
+            const obs = new THREE.Mesh(
+                new THREE.BoxGeometry(2.5, 1.2, 5),
+                new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xff0055, emissiveIntensity: 2.5 })
+            );
+            // Limit spawn range slightly to ensure cars are always on or near the road
+            obs.position.set((Math.random()-0.5)*10, 0.6, -120);
+            scene.add(obs);
+            obstacles.push(obs);
+        }
+
+        // --- INPUTS ---
+        const keys = {};
+        window.onkeydown = (e) => keys[e.key.toLowerCase()] = true;
+        window.onkeyup = (e) => keys[e.key.toLowerCase()] = false;
+
+        // --- MAIN LOOP ---
+        function animate() {
+            if (isGameOver) return;
+
+            speed += 0.00015; // Slowed acceleration slightly for better control
+            score += Math.floor(speed * 5);
+            document.getElementById('score').innerText = score;
+            document.getElementById('speed-val').innerText = Math.floor(speed * 100);
+
+            // Movement
+            if ((keys['a'] || keys['arrowleft']) && mower.position.x > -5) mower.position.x -= 0.22;
+            if ((keys['d'] || keys['arrowright']) && mower.position.x < 5) mower.position.x += 0.22;
+            
+            mower.rotation.z = THREE.MathUtils.lerp(mower.rotation.z, (keys['a']?-0.15:(keys['d']?0.15:0)), 0.1);
+
+            // Infinite Road movement
+            grid.position.z += speed * 2;
+            if(grid.position.z > 20) grid.position.z = 0;
+
+            // Scenery logic
+            if(Math.random() < 0.1) createBuilding();
+            scenery.forEach((s, i) => {
+                s.position.z += speed * 2.5;
+                if(s.position.z > 50) { scene.remove(s); scenery.splice(i, 1); }
+            });
+
+            // OBSTACLE SPAWN LOGIC (FIXED)
+            // cooldown prevents cars from spawning at the exact same Z-depth
+            obstacleTimer--; 
+            if(obstacleTimer <= 0) {
+                if(Math.random() < 0.05) { 
+                    spawnObstacle();
+                    // This creates a guaranteed gap of at least 35 frames between car spawns
+                    obstacleTimer = 35; 
+                }
+            }
+
+            obstacles.forEach((o, i) => {
+                o.position.z += speed * 0.9;
+                
+                // Collision Detection
+                const dx = Math.abs(o.position.x - mower.position.x);
+                const dz = Math.abs(o.position.z - mower.position.z);
+                // Box collision check (width 1.5 + 2.5 = 4 / 2 = 2.0 margin)
+                if(dx < 1.8 && dz < 3.2) endGame();
+
+                if(o.position.z > 10) { scene.remove(o); obstacles.splice(i, 1); }
+            });
+
+            // Camera follow with slight bounce
+            camera.position.set(0, 4, 5);
+            camera.lookAt(mower.position.x * 0.4, 1, -10);
+            camera.position.y += Math.sin(Date.now()*0.005) * 0.05;
+
+            renderer.render(scene, camera);
+            requestAnimationFrame(animate);
+        }
+
+        function endGame() {
+            isGameOver = true;
+            document.getElementById('game-over').style.display = 'block';
+            document.getElementById('final-score').innerText = "SCORE: " + score;
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
+
+```
