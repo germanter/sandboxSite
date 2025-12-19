@@ -1,0 +1,11 @@
+demeli burda ne oldu
+normalda oyun htmllerine index.htmlden pramoy girirdik ama bu yolnan
+oyunlarin etrafina reklam qoyammazsan gerek oyun html fayli birdene basa holder html  
+icindeki konteyner div inde guvenli safezone box icinde ozuycun islesin
+bunuda en guvenli elemek yolu iframe isletmek + her bir game htmline
+    <meta name="robots" content="noindex,nofollow">
+bu line i headina qoymaydi bu onu deyirdi
+ay google peti botlari bu seyfeni internetde indexleyende holder.htmle baxin o qutudaki oyun htmline baxmiyin
+indi yeni sey elave eleyende hemiseki kimi eleyirsen amma birdene teze game htmline 
+    <meta name="robots" content="noindex,nofollow">
+bu linei ozun elave eleyirsen 

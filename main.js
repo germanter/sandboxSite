@@ -1,4 +1,5 @@
 
+
 //we just define title and link of games, we dont deal with color shit here
 const games = [
   { title: "Shoot the Orbs 2D", link: "/games//theOrbs2d.html" },
@@ -47,6 +48,9 @@ games.forEach((game,index) => {
     rounded-2xl p-8 border-2 border-${color}-200 hover:border-${color}-400
   `;
 
+  // Burada linki holder.html'e yönlendiriyoruz ve bilgileri URL'e gömüyoruz
+  const holderUrl = `holder/holder.html?title=${encodeURIComponent(game.title)}&gameUrl=${encodeURIComponent(game.link)}`;
+
   card.innerHTML = `
     <h3 class="text-xl font-semibold text-slate-800 mb-6 text-center">
       ${game.title}
@@ -58,7 +62,7 @@ games.forEach((game,index) => {
 
     <button 
       class="w-full bg-${color}-600 hover:bg-${color}-700 text-white font-semibold py-3 rounded-xl transition-colors"
-      onclick="location.href='${game.link}'">
+      onclick="location.href='${holderUrl}'">
       Play Now
     </button>
   `;
