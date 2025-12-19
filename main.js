@@ -24,11 +24,23 @@ const colorPalette = [
   "slate"    // Gri/Füme
 ];
 
+// 3. Fisher-Yates Karıştırma Fonksiyonu
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]]; // Elemanları takas et (Swap)
+  }
+  return array;
+}
+
+// Renkleri karıştır (Orijinal diziyi bozmamak için kopyasını oluşturup karıştırıyoruz)
+const shuffledColors = shuffleArray([...colorPalette]);
+
 
 const grid = document.getElementById("gamesGrid");
 
 games.forEach((game,index) => {
-    const color = colorPalette[index % colorPalette.length];
+  const color = shuffledColors[index % shuffledColors.length];
   const card = document.createElement("div");
   card.className = `
     game-card bg-gradient-to-br from-${color}-50 to-${color}-50
