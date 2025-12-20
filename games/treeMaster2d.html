@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="robots" content="noindex,nofollow">
+    <title>Super Lumberjack Ultra DX</title>
+    <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0; padding: 0; background: #1a1a1a;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; overflow: hidden;
+            font-family: 'Bungee', cursive; user-select: none; -webkit-user-select: none;
+            touch-action: none; /* Mobilde kaydırmayı tamamen engeller */
+        }
+        #game-container {
+            position: relative; width: 100%; max-width: 500px; height: 100%; max-height: 850px;
+            background: linear-gradient(to bottom, #4facfe 0%, #00f2fe 100%);
+            box-shadow: 0 0 50px rgba(0,0,0,0.8); border: 8px solid #333; box-sizing: border-box;
+            overflow: hidden;
+        }
+        canvas { display: block; width: 100%; height: 100%; }
+        #ui {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; color: white; text-shadow: 3px 3px 0 #000;
+        }
+        .hud-top { padding: 20px; text-align: center; margin-top: 10px; }
+        #score-display { font-size: 70px; margin: 0; color: #ffeb3b; line-height: 1; }
+        #high-score-display { font-size: 12px; opacity: 0.9; font-family: 'Press Start 2P', cursive; margin-top: 5px; }
+        
+        #timer-container {
+            width: 60%; height: 20px; background: rgba(0,0,0,0.5);
+            margin: 10px auto; border: 3px solid #fff; border-radius: 20px; overflow: hidden;
+        }
+        #timer-bar { width: 100%; height: 100%; background: linear-gradient(90deg, #ff9966, #ff5e62); transition: width 0.1s linear; }
+
+        #overlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            text-align: center; pointer-events: auto; background: rgba(0,0,0,0.9);
+            padding: 30px; border-radius: 30px; border: 6px solid #ffeb3b; width: 85%;
+            box-sizing: border-box;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        h1 { font-size: 42px; margin: 0; color: #ffeb3b; line-height: 1; letter-spacing: 2px; }
+        p { font-family: 'Arial', sans-serif; font-weight: bold; margin: 15px 0; color: #ddd; text-shadow: none; }
+        
+        button {
+            padding: 15px 30px; font-size: 24px; background: #ff9800; color: white;
+            border: none; border-bottom: 6px solid #e65100; cursor: pointer;
+            font-family: 'Bungee', cursive; border-radius: 12px; transition: 0.1s;
+            text-transform: uppercase; width: 100%;
+        }
+        button:hover { background: #ffb74d; margin-top: 2px; border-bottom-width: 4px; }
+        button:active { margin-top: 6px; border-bottom-width: 0px; }
+        
+        .death-msg { color: #ff5252; font-style: italic; font-size: 16px; margin-bottom: 20px; text-shadow: none; min-height: 20px;}
+        
+        /* Mobil Kontrol İpuçları */
+        .tap-hint {
+            position: absolute; bottom: 20px; width: 100%; text-align: center;
+            font-size: 14px; opacity: 0.6; animation: blink 2s infinite;
+        }
+        @keyframes blink { 0%,100%{opacity:0.3} 50%{opacity:0.8} }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="ui">
+        <div class="hud-top">
+            <div id="score-display">0</div>
+            <div id="high-score-display">BEST: 0</div>
+            <div id="timer-container"><div id="timer-bar"></div></div>
+        </div>
+        
+        <div class="tap-hint" id="hint-text">TAP LEFT / RIGHT TO CHOP</div>
+
+        <div id="overlay">
+            <h1 id="msg-title">TIMBER!</h1>
+            <p id="msg-body">Avoid branches.<br>Chop fast to survive.</p>
+            <div id="death-joke" class="death-msg"></div>
+            <button id="start-btn">PLAY</button>
+        </div>
+    </div>
+</div>
+
+<script>
+/** AYARLAR **/
+const CONFIG = {
+    trunkWidth: 100, trunkHeight: 120, branchWidth: 150, branchHeight: 50,
+    playerWidth: 80, playerHeight: 100, 
+    timerMax: 100, timerAdd: 6, // Biraz daha zorlaştırdım
+    initialTimerDrain: 0.25, difficultyScale: 0.008, branchChanceBase: 0.5
+};
+
+const JOKES = [
+    "You got stumped!", "Barking up the wrong tree?", "Leaf me alone!", 
+    "Total wipeout!", "Need to branch out more.", "Wood you try again?",
+    "That was axe-cruciating.", "Knot today!"
+];
+
+/** SES MOTORU (Basit Web Audio API) **/
+const AudioEngine = {
+    ctx: new (window.AudioContext || window.webkitAudioContext)(),
+    playTone(freq, type, duration, vol) {
+        if(this.ctx.state === 'suspended') this.ctx.resume();
+        try {
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = type;
+            osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+            osc.frequency.exponentialRampToValueAtTime(freq/2, this.ctx.currentTime + duration);
+            gain.gain.setValueAtTime(vol, this.ctx.currentTime);
+            gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + duration);
+            osc.connect(gain); gain.connect(this.ctx.destination);
+            osc.start(); osc.stop(this.ctx.currentTime + duration);
+        } catch(e) {}
+    },
+    chop() { this.playTone(150 + Math.random()*50, 'square', 0.1, 0.15); },
+    lose() { this.playTone(100, 'sawtooth', 0.8, 0.2); },
+};
+
+/** OYUN MOTORU **/
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d', { alpha: false }); // Performans için alpha false
+const scoreEl = document.getElementById('score-display');
+const highscoreEl = document.getElementById('high-score-display');
+const timerBar = document.getElementById('timer-bar');
+const overlay = document.getElementById('overlay');
+const startBtn = document.getElementById('start-btn');
+const jokeEl = document.getElementById('death-joke');
+const hintEl = document.getElementById('hint-text');
+
+let state = 'MENU';
+let score = 0, highscore = localStorage.getItem('lumber_best_v3') || 0;
+let timer = CONFIG.timerMax;
+let playerSide = -1; // -1: Sol, 1: Sağ
+let tree = []; 
+let particles = [], floaters = [];
+let axeFrame = 0; // Animasyon frame'i
+let screenShake = 0;
+let frameCount = 0;
+let flashEffect = 0; // Vuruşta ağaç parlaması
+
+highscoreEl.innerText = `BEST: ${highscore}`;
+
+function resize() {
+    const container = document.getElementById('game-container');
+    canvas.width = container.clientWidth;
+    canvas.height = container.clientHeight;
+}
+window.addEventListener('resize', resize);
+resize();
+
+function initGame() {
+    score = 0; timer = CONFIG.timerMax; playerSide = -1;
+    tree = Array(7).fill(0); // 0: Dal yok, -1: Sol dal, 1: Sağ dal
+    particles = []; floaters = [];
+    state = 'PLAYING'; 
+    overlay.style.display = 'none';
+    hintEl.style.display = 'block';
+    scoreEl.innerText = "0";
+    spawnSegment(); // İlk segmentleri oluştur
+    spawnSegment();
+}
+
+function spawnSegment() {
+    // Son iki dal boşsa yeni dal ekleme şansı ver
+    const last = tree[tree.length - 1];
+    const secondLast = tree[tree.length - 2];
+    
+    let newBranch = 0;
+    if (Math.random() < CONFIG.branchChanceBase && last === 0 && secondLast === 0) {
+        newBranch = Math.random() > 0.5 ? 1 : -1;
+    }
+    tree.push(newBranch);
+    if (tree.length > 9) tree.shift();
+}
+
+function chop(side) {
+    if (state !== 'PLAYING') return;
+    
+    // İlk vuruşta ipucunu gizle
+    hintEl.style.display = 'none';
+
+    playerSide = side; // -1 (sol) veya 1 (sağ)
+    axeFrame = 5; // Animasyon süresi
+    
+    // Ağacın dibinde dal var mı? (Çarpışma kontrolü)
+    if (tree[0] === playerSide) { gameOver(); return; }
+
+    AudioEngine.chop();
+    score++;
+    scoreEl.innerText = score;
+    
+    // Zamanı doldur ama max'ı geçme
+    timer = Math.min(CONFIG.timerMax, timer + CONFIG.timerAdd);
+    screenShake = 6;
+    flashEffect = 3; // 3 frame boyunca beyaz parla
+
+    // +1 Yazısı
+    floaters.push({ 
+        x: (playerSide === -1 ? canvas.width/2 - 80 : canvas.width/2 + 80), 
+        y: canvas.height - 280, 
+        life: 1.0 
+    });
+
+    // Ağacı kaydır
+    tree.shift();
+    spawnSegment();
+
+    // Kaydırdıktan sonra hemen kafamıza dal indi mi?
+    if (tree[0] === playerSide) { gameOver(); return; }
+
+    // Efekt: Talaş Parçacıkları (Daha patlayıcı)
+    for(let i=0; i<8; i++) {
+        particles.push({
+            x: canvas.width/2 + (playerSide === -1 ? 20 : -20), 
+            y: canvas.height - 180,
+            vx: (playerSide === -1 ? 5 : -5) + (Math.random() * 10 - 5), // Rastgele saçılma
+            vy: -Math.random() * 15 - 5,
+            rot: Math.random() * Math.PI,
+            vrot: (Math.random() - 0.5) * 0.8,
+            color: Math.random() > 0.5 ? '#d7ccc8' : '#a1887f',
+            life: 1.0
+        });
+    }
+
+    // High Score Kayıt
+    if (score > highscore) {
+        highscore = score;
+        localStorage.setItem('lumber_best_v3', highscore);
+        highscoreEl.innerText = `BEST: ${highscore}`;
+    }
+}
+
+function gameOver() {
+    state = 'DEAD';
+    AudioEngine.lose();
+    screenShake = 20;
+    document.getElementById('msg-title').innerText = "SMASHED!";
+    document.getElementById('msg-body').innerHTML = `SCORE: <span style="color:#ffeb3b; font-size:1.5em">${score}</span>`;
+    jokeEl.innerText = JOKES[Math.floor(Math.random()*JOKES.length)];
+    overlay.style.display = 'block';
+    startBtn.innerText = "TRY AGAIN";
+    hintEl.style.display = 'none';
+}
+
+/** INPUT HANDLERS (MOBİL İÇİN DÜZELTİLDİ) **/
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowLeft' || e.key === 'a') chop(-1);
+    if (e.key === 'ArrowRight' || e.key === 'd') chop(1);
+});
+
+// Mobilde dokunmayı algıla (Sol/Sağ ekran)
+canvas.addEventListener('touchstart', (e) => {
+    e.preventDefault(); // Zoom ve scrollu engelle
+    for (let i = 0; i < e.changedTouches.length; i++) {
+        let touchX = e.changedTouches[i].clientX;
+        chop(touchX < window.innerWidth / 2 ? -1 : 1);
+    }
+}, {passive: false});
+
+// Masaüstü tıklama
+canvas.addEventListener('mousedown', (e) => {
+    chop(e.clientX < window.innerWidth / 2 ? -1 : 1);
+});
+
+startBtn.addEventListener('click', (e) => {
+    e.stopPropagation(); // Tıklamanın canvas'a geçmesini engelle
+    AudioEngine.ctx.resume();
+    initGame();
+});
+
+/** ÇİZİM FONKSİYONLARI **/
+
+function drawLumberjack(x, y, side, isDead) {
+    ctx.save();
+    ctx.translate(x, y);
+
+    // Yanıp sönme (Hasar alınca değil, bekleme anında nefes alma efekti)
+    if (!isDead && state === 'PLAYING') {
+        const breath = Math.sin(frameCount * 0.1) * 2;
+        ctx.translate(0, breath);
+    }
+    
+    // Yön çevirme (side -1 ise normal, 1 ise flip)
+    // Karakter çizimi sola bakacak şekilde tasarlandı, sağ için scale(-1, 1) kullanacağız.
+    if (side === 1) {
+        ctx.scale(-1, 1); 
+    }
+
+    // Gövde (Gömlek)
+    ctx.fillStyle = isDead ? '#555' : '#d84315';
+    ctx.fillRect(-35, -90, 70, 90);
+    // Gömlek Kareleri (Detay)
+    ctx.fillStyle = 'rgba(0,0,0,0.15)';
+    ctx.fillRect(-35, -90, 35, 45); 
+    ctx.fillRect(0, -45, 35, 45);
+
+    // Kafa
+    ctx.fillStyle = '#ffccbc';
+    ctx.fillRect(-25, -130, 50, 40);
+
+    // Sakal
+    ctx.fillStyle = '#4e342e';
+    ctx.fillRect(-27, -105, 54, 25);
+    
+    // Şapka
+    ctx.fillStyle = '#d32f2f';
+    ctx.fillRect(-30, -145, 60, 20); // Alt kısım
+    ctx.beginPath(); ctx.arc(0, -145, 28, Math.PI, 0); ctx.fill(); // Üst yuvarlak
+
+    // Gözler
+    ctx.fillStyle = '#000';
+    if (isDead) {
+        ctx.font = "20px Arial"; ctx.fillText("X", -15, -115); ctx.fillText("X", 5, -115);
+    } else {
+        ctx.fillRect(-12, -120, 8, 8);
+        ctx.fillRect(8, -120, 8, 8);
+    }
+
+    // BALTA ANİMASYONU
+    ctx.save();
+    ctx.translate(20, -60); // Omuz noktası
+    
+    let rotation = 0;
+    if (isDead) {
+        rotation = 2; // Düşmüş balta
+    } else if (axeFrame > 2) {
+        // Geri çekilme (Wind up)
+        rotation = -0.5; 
+    } else if (axeFrame > 0) {
+        // Vuruş (Smash)
+        rotation = 1.8;
+    } else {
+        // Bekleme (Idle)
+        rotation = 0.2 + Math.sin(frameCount * 0.05) * 0.05;
+    }
+    
+    ctx.rotate(rotation);
+
+    // Balta Sapı
+    ctx.fillStyle = '#8d6e63';
+    ctx.fillRect(-5, -50, 10, 80);
+    
+    // Balta Başı
+    ctx.fillStyle = '#90a4ae';
+    ctx.beginPath();
+    ctx.moveTo(0, -50);
+    ctx.lineTo(40, -30);
+    ctx.lineTo(40, -70);
+    ctx.fill();
+    
+    ctx.restore(); // Balta bitiş
+    ctx.restore(); // Oyuncu bitiş
+}
+
+function drawTreeSegment(x, y, type, isBase = false) {
+    // Vuruş efekti (Flash)
+    if (isBase && flashEffect > 0) {
+        ctx.fillStyle = '#fff';
+        flashEffect--;
+    } else {
+        // Gövde Gradient
+        let grad = ctx.createLinearGradient(x, y, x + CONFIG.trunkWidth, y);
+        grad.addColorStop(0, '#3e2723');
+        grad.addColorStop(0.2, '#5d4037');
+        grad.addColorStop(0.8, '#5d4037');
+        grad.addColorStop(1, '#3e2723');
+        ctx.fillStyle = grad;
+    }
+    
+    ctx.fillRect(x, y - CONFIG.trunkHeight, CONFIG.trunkWidth, CONFIG.trunkHeight);
+    
+    // Ağaç Dokusu (Halkalar)
+    ctx.strokeStyle = 'rgba(0,0,0,0.1)';
+    ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.moveTo(x + 20, y - CONFIG.trunkHeight); ctx.lineTo(x+20, y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(x + 70, y - CONFIG.trunkHeight); ctx.lineTo(x+70, y); ctx.stroke();
+    
+    // Kesik çizgisi (Her segment arası)
+    ctx.fillStyle = '#8d6e63';
+    ctx.fillRect(x, y-2, CONFIG.trunkWidth, 4);
+
+    // DAL ÇİZİMİ
+    if (type !== 0) {
+        const isRight = type === 1;
+        const bx = isRight ? x + CONFIG.trunkWidth : x - CONFIG.branchWidth;
+        const by = y - CONFIG.trunkHeight/2 - 25;
+        
+        // Dal odunu
+        ctx.fillStyle = '#4e342e';
+        ctx.fillRect(bx, by, CONFIG.branchWidth, CONFIG.branchHeight);
+        
+        // Yapraklar (Daha pofuduk)
+        ctx.fillStyle = '#2e7d32';
+        // Alt gölge
+        ctx.beginPath(); 
+        ctx.arc(isRight ? bx + CONFIG.branchWidth : bx, by + 25, 35, 0, Math.PI*2); 
+        ctx.fillStyle = '#1b5e20'; ctx.fill();
+        
+        // Ana yaprak
+        ctx.beginPath(); 
+        ctx.arc(isRight ? bx + CONFIG.branchWidth : bx, by + 10, 35, 0, Math.PI*2); 
+        ctx.fillStyle = '#2e7d32'; ctx.fill();
+        
+        // Parlaklık
+        ctx.beginPath(); 
+        ctx.arc(isRight ? bx + CONFIG.branchWidth - 10 : bx - 10, by, 10, 0, Math.PI*2); 
+        ctx.fillStyle = '#66bb6a'; ctx.fill();
+    }
+}
+
+function drawStump(x, y) {
+    // Sabit Kütük
+    let grad = ctx.createLinearGradient(x, y, x + CONFIG.trunkWidth, y);
+    grad.addColorStop(0, '#3e2723');
+    grad.addColorStop(1, '#5d4037');
+    ctx.fillStyle = grad;
+    ctx.fillRect(x - 10, y, CONFIG.trunkWidth + 20, 40); // Geniş taban
+    
+    // Çimler
+    ctx.fillStyle = '#388e3c';
+    ctx.beginPath();
+    ctx.arc(x - 20, y + 40, 20, 0, Math.PI, true); ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x + CONFIG.trunkWidth + 20, y + 40, 25, 0, Math.PI, true); ctx.fill();
+}
+
+/** OYUN DÖNGÜSÜ **/
+function loop() {
+    // UPDATE
+    if (state === 'PLAYING') {
+        timer -= CONFIG.initialTimerDrain + (score * CONFIG.difficultyScale);
+        if (timer <= 0) { timer = 0; gameOver(); }
+    }
+    
+    timerBar.style.width = timer + "%";
+    
+    if (screenShake > 0) screenShake *= 0.9;
+    if (axeFrame > 0) axeFrame--;
+    frameCount++;
+
+    // Fizik
+    particles.forEach((p, i) => {
+        p.x += p.vx; p.y += p.vy; 
+        p.vy += 0.8; // Yerçekimi
+        p.rot += p.vrot; 
+        p.life -= 0.02;
+        if (p.life <= 0) particles.splice(i, 1);
+    });
+
+    floaters.forEach((f, i) => {
+        f.y -= 3; f.life -= 0.03;
+        if (f.life <= 0) floaters.splice(i, 1);
+    });
+
+    // DRAW
+    ctx.save();
+    
+    // Arkaplan Temizle
+    ctx.fillStyle = '#4fc3f7'; 
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Ekran Sallantısı
+    if (screenShake > 0.5) {
+        ctx.translate((Math.random()-0.5)*screenShake, (Math.random()-0.5)*screenShake);
+    }
+
+    // Bulutlar (Parallax efekti için yavaş hareket)
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    const cloudSpeed = frameCount * 0.5;
+    [100, 350, 600].forEach((cx, i) => {
+        let x = (cx + cloudSpeed * (1 + i*0.2)) % (canvas.width + 300) - 150;
+        let y = 100 + i * 40;
+        ctx.beginPath(); 
+        ctx.arc(x, y, 40, 0, Math.PI*2); 
+        ctx.arc(x+30, y-10, 50, 0, Math.PI*2); 
+        ctx.arc(x+60, y, 40, 0, Math.PI*2); 
+        ctx.fill();
+    });
+
+    // Zemin
+    ctx.fillStyle = '#66bb6a'; // Açık yeşil
+    ctx.fillRect(0, canvas.height - 100, canvas.width, 100);
+    ctx.fillStyle = '#43a047'; // Koyu şerit
+    ctx.fillRect(0, canvas.height - 100, canvas.width, 15);
+
+    // Ağaç Konumu
+    const centerX = canvas.width / 2 - CONFIG.trunkWidth/2;
+    const stumpY = canvas.height - 100;
+
+    // Kütüğü Çiz
+    drawStump(centerX, stumpY);
+
+    // Gövdeyi Çiz
+    tree.forEach((branchDir, i) => {
+        drawTreeSegment(centerX, stumpY - (i * CONFIG.trunkHeight), branchDir, i === 0);
+    });
+
+    // Oyuncuyu Çiz
+    // Konum: Eğer sol (-1) ise solda, sağ (1) ise sağda dur
+    const px = playerSide === -1 ? centerX - 90 : centerX + CONFIG.trunkWidth + 90;
+    const py = stumpY;
+    drawLumberjack(px, py, playerSide, state === 'DEAD');
+
+    // Parçacıkları Çiz
+    particles.forEach(p => {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.globalAlpha = p.life;
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-10, -10, 20, 20); // Daha büyük talaş
+        ctx.strokeStyle = '#5d4037';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(-10, -10, 20, 20);
+        ctx.restore();
+    });
+
+    // Floating Text (+1 vb)
+    ctx.font = "bold 40px 'Bungee'";
+    ctx.textAlign = "center";
+    floaters.forEach(f => {
+        ctx.fillStyle = `rgba(255, 235, 59, ${f.life})`;
+        ctx.shadowColor = "black";
+        ctx.shadowBlur = 4;
+        ctx.fillText("+1", f.x, f.y);
+        ctx.shadowBlur = 0; // Shadow reset
+    });
+
+    ctx.restore();
+    requestAnimationFrame(loop);
+}
+
+// Başlat
+loop();
+
+</script>
+</body>
+</html>

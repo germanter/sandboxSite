@@ -13,6 +13,11 @@ const games = [
     imgLink: "https://i.postimg.cc/TYtPdYLD/shoot-The-Orbs3d.webp"
   },
   {
+    title: "Tree Master 2D",
+    link: "/games//treeMaster2d.html",
+    imageLink:"https://i.postimg.cc/j536Ls0k/wood-Master.webp"
+  },
+  {
     title: "Make a mess Lab",
     link: "/games//makeAMessLab.html",
     imgLink: "https://i.postimg.cc/90tYRq3x/make-AMess-Lab.webp"
