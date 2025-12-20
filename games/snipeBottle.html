@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex,nofollow">
+    <title>SnipeBottles Pro - Ultra</title>
+    <style>
+        :root {
+            --primary: #00f2ff;
+            --danger: #ff3333;
+            --glass: rgba(15, 25, 35, 0.85);
+            --border: rgba(0, 242, 255, 0.3);
+        }
+        body { margin: 0; overflow: hidden; background-color: #87ceeb; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
+        canvas { display: block; }
+
+        /* Modern UI Glass Effect */
+        .glass-panel {
+            background: var(--glass);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: white;
+            padding: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; z-index: 10;
+        }
+
+        .hud-top-left { position: absolute; top: 20px; left: 20px; }
+        .hud-top-right { position: absolute; top: 20px; right: 20px; }
+        
+        /* New Top Pause Menu */
+        #top-pause-bar {
+            position: absolute; top: 0; left: 0; width: 100%; height: 60px;
+            background: rgba(0,0,0,0.7); display: none; /* Hidden by default */
+            align-items: center; justify-content: center; gap: 20px;
+            pointer-events: auto; z-index: 101; border-bottom: 1px solid var(--primary);
+        }
+
+        #ammo-container {
+            position: absolute; bottom: 40px; right: 40px;
+            font-size: 54px; font-weight: 900; color: white;
+            text-shadow: 0 0 15px var(--primary);
+            font-family: monospace;
+        }
+
+        .btn {
+            background: var(--primary); border: none; padding: 8px 20px;
+            border-radius: 4px; font-weight: bold; cursor: pointer;
+            transition: all 0.2s; color: #000; text-transform: uppercase;
+            letter-spacing: 1px; pointer-events: auto; font-size: 14px;
+        }
+        .btn:hover { background: white; transform: translateY(-2px); box-shadow: 0 0 20px var(--primary); }
+        .btn:active { transform: translateY(0); }
+        .btn-restart { background: #555; color: white; }
+
+        /* Menus */
+        .overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,10,20,0.6); display: flex;
+            flex-direction: column; align-items: center; justify-content: center;
+            z-index: 100; color: white; pointer-events: auto;
+        }
+
+        #crosshair {
+            position: absolute; top: 50%; left: 50%;
+            width: 20px; height: 20px;
+            border: 2px solid var(--primary); border-radius: 50%;
+            transform: translate(-50%, -50%); pointer-events: none;
+        }
+        #crosshair::before, #crosshair::after {
+            content: ''; position: absolute; background: var(--primary);
+        }
+        #crosshair::before { top: 50%; left: -5px; width: 30px; height: 1px; transform: translateY(-50%); }
+        #crosshair::after { left: 50%; top: -5px; height: 30px; width: 1px; transform: translateX(-50%); }
+
+        #scope-overlay {
+            position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: radial-gradient(circle, transparent 30%, black 70%);
+            display: none; pointer-events: none; z-index: 5;
+        }
+        #scope-overlay .reticle-v { position: absolute; left: 50%; top: 0; width: 1px; height: 100%; background: rgba(0, 255, 0, 0.3); }
+        #scope-overlay .reticle-h { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(0, 255, 0, 0.3); }
+
+        #reload-msg {
+            position: absolute; top: 65%; left: 50%; transform: translate(-50%, -50%);
+            color: var(--danger); font-size: 24px; font-weight: bold; display: none;
+            letter-spacing: 4px; text-shadow: 0 0 10px rgba(255,0,0,0.5);
+        }
+
+        #settings-panel { position: absolute; bottom: 20px; left: 20px; pointer-events: auto; z-index: 102; }
+        .slider-label { font-size: 10px; color: var(--primary); margin-bottom: 5px; display: block; }
+        input[type=range] { width: 120px; accent-color: var(--primary); cursor: pointer; }
+
+        .hint { font-size: 12px; opacity: 0.6; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <!-- Top Navigation Menu (Visible when paused) -->
+    <div id="top-pause-bar">
+        <span style="color: var(--primary); font-weight: bold; margin-right: 20px;">GAME PAUSED</span>
+        <button class="btn" id="resume-btn">CONTINUE</button>
+        <button class="btn btn-restart" onclick="location.reload()">RESTART</button>
+    </div>
+
+    <div id="ui-layer">
+        <div class="hud-top-left">
+            <h2 style="margin:0; color: var(--primary); text-transform: uppercase;">SnipeBottles <span style="font-weight: 300; font-size: 14px; color: white;">v2.0</span></h2>
+            <div id="score" style="font-size: 24px; font-weight: bold;">SMASHED: 0</div>
+		<div style="font-size: 24px; font-weight: bold;">SHOOT : Left Click</div>
+		<div style="font-size: 24px; font-weight: bold;">ZOOM : Right Click</div>
+		<div style="font-size: 24px; font-weight: bold;">Mouse : ESC</div>
+        </div>
+
+        <div class="hud-top-right">
+            <div id="timer" class="glass-panel" style="font-size: 32px; font-family: monospace; color: var(--primary);">60.0s</div>
+        </div>
+
+        <!-- Sensitivity remains accessible here -->
+        <div id="settings-panel" class="glass-panel">
+            <span class="slider-label">MOUSE SENSITIVITY</span>
+            <input type="range" id="sens-slider" min="0.0001" max="0.005" step="0.0001" value="0.0015">
+        </div>
+
+        <div id="ammo-container">
+            <span id="ammo-count">5</span><span style="font-size: 20px; opacity: 0.4">/5</span>
+        </div>
+    </div>
+
+    <div id="reload-msg">RELOADING...</div>
+    <div id="crosshair"></div>
+    
+    <div id="scope-overlay">
+        <div class="reticle-v"></div>
+        <div class="reticle-h"></div>
+    </div>
+
+    <!-- Screens -->
+    <div id="start-screen" class="overlay">
+        <h1 style="font-size: 64px; letter-spacing: 10px; margin-bottom: 10px;">SNIPER <span style="color: var(--primary)">PRO</span></h1>
+        <p style="margin-bottom: 30px; text-align: center; line-height: 1.6;">
+            [L-CLICK] FIRE | [R-CLICK] ZOOM | [R] RELOAD<br>
+            [ESC] UNLOCK MOUSE / PAUSE
+        </p>
+        <button class="btn" id="start-btn">Initialize Training</button>
+    </div>
+
+    <div id="game-over" class="overlay" style="display: none;">
+        <h1 style="color: var(--danger); font-size: 50px;">SESSION ENDED</h1>
+        <div id="final-score" style="font-size: 28px; margin-bottom: 30px; font-family: monospace;"></div>
+        <button class="btn" onclick="location.reload()">RESTART</button>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+
+        // --- Game State ---
+        let score = 0, ammo = 5, timeLeft = 60;
+        let isZoomed = false, isReloading = false, gameActive = false, isPaused = false;
+        let sensitivity = 0.0015;
+        const targetBottles = [], particles = [];
+
+        // --- Audio ---
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(type) {
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            const osc = audioCtx.createOscillator(), gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+            if (type === 'shoot') {
+                osc.type = 'square'; osc.frequency.setValueAtTime(180, now);
+                osc.frequency.exponentialRampToValueAtTime(40, now + 0.1);
+                gain.gain.setValueAtTime(0.2, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+                osc.start(); osc.stop(now + 0.2);
+            } else if (type === 'zoom') {
+                osc.frequency.setValueAtTime(isZoomed ? 600 : 300, now);
+                gain.gain.setValueAtTime(0.02, now); osc.start(); osc.stop(now + 0.05);
+            }
+        }
+
+        // --- Scene Setup ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xa3d8ff); 
+        scene.fog = new THREE.Fog(0xa3d8ff, 40, 150);
+
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.2;
+        document.body.appendChild(renderer.domElement);
+
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+        scene.add(ambientLight);
+        
+        const sunLight = new THREE.DirectionalLight(0xffffff, 2.0);
+        sunLight.position.set(20, 40, 20);
+        sunLight.castShadow = true;
+        scene.add(sunLight);
+
+        const floor = new THREE.Mesh(
+            new THREE.PlaneGeometry(1000, 1000),
+            new THREE.MeshStandardMaterial({ color: 0x4a7c44, roughness: 0.8 })
+        );
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        for(let i=0; i<100; i++) {
+            const x = (Math.random() - 0.5) * 200;
+            const z = -Math.random() * 180 - 10;
+            if (Math.abs(x) < 10 && z > -15) continue;
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.4, 3), new THREE.MeshStandardMaterial({color: 0x3d2b1f}));
+            const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.5, 5, 8), new THREE.MeshStandardMaterial({color: 0x2d5a27}));
+            trunk.position.set(x, 1.5, z); leaves.position.set(x, 4.5, z);
+            scene.add(trunk, leaves);
+        }
+
+        const gunGroup = new THREE.Group();
+        const metalMat = new THREE.MeshStandardMaterial({ color: 0x151515, metalness: 0.8, roughness: 0.2 });
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 4, 12), metalMat);
+        barrel.rotation.x = Math.PI / 2; barrel.position.z = -1.8;
+        const gunBody = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.4, 1.8), metalMat);
+        const scopeTube = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 1, 12), metalMat);
+        scopeTube.rotation.x = Math.PI / 2; scopeTube.position.set(0, 0.28, -0.4);
+        gunGroup.add(barrel, gunBody, scopeTube);
+        scene.add(gunGroup);
+
+        camera.position.set(0, 1.6, 5);
+
+        // --- Controls & Pause Logic ---
+        const startBtn = document.getElementById('start-btn');
+        const resumeBtn = document.getElementById('resume-btn');
+        const topPauseBar = document.getElementById('top-pause-bar');
+
+        function requestLock() {
+            document.body.requestPointerLock();
+        }
+
+        document.addEventListener('pointerlockchange', () => {
+            if (document.pointerLockElement === document.body) {
+                isPaused = false;
+                topPauseBar.style.display = 'none'; // Hide top bar when playing
+            } else {
+                if (gameActive) {
+                    isPaused = true;
+                    topPauseBar.style.display = 'flex'; // Show top bar when paused
+                }
+            }
+        });
+
+        startBtn.onclick = () => {
+            gameActive = true;
+            document.getElementById('start-screen').style.display = 'none';
+            requestLock();
+            startTimer();
+        };
+
+        resumeBtn.onclick = requestLock;
+
+        let targetRotationX = 0, targetRotationY = 0, recoilX = 0, recoilY = 0;
+
+        document.addEventListener('mousemove', (e) => {
+            if (document.pointerLockElement === document.body && !isPaused) {
+                targetRotationY -= e.movementX * sensitivity;
+                targetRotationX -= e.movementY * sensitivity;
+                targetRotationX = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, targetRotationX));
+            }
+        });
+
+        function startTimer() {
+            const timerInt = setInterval(() => {
+                if (isPaused || !gameActive) return;
+                timeLeft -= 0.1;
+                document.getElementById('timer').innerText = timeLeft.toFixed(1) + "s";
+                if (timeLeft <= 0) {
+                    clearInterval(timerInt);
+                    endGame();
+                }
+            }, 100);
+        }
+
+        function endGame() {
+            gameActive = false;
+            document.exitPointerLock();
+            document.getElementById('game-over').style.display = 'flex';
+            document.getElementById('final-score').innerText = `BOTTLES SMASHED: ${score}`;
+        }
+
+        // --- Bottle Logic ---
+        function createBottle() {
+            const bGroup = new THREE.Group();
+            const mat = new THREE.MeshPhysicalMaterial({ color: Math.random() > 0.5 ? 0x00f2ff : 0xe3ff00, roughness: 0, metalness: 0.5, transmission: 0.5, thickness: 0.5 });
+            const bBody = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 0.7, 12), mat);
+            const bNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.3, 12), mat);
+            bNeck.position.y = 0.5; bGroup.add(bBody, bNeck);
+            bGroup.position.set((Math.random() - 0.5) * 45, 0.6, -25 - Math.random() * 60);
+            scene.add(bGroup);
+            targetBottles.push(bGroup);
+        }
+        for(let i=0; i<18; i++) createBottle();
+
+        function shatter(pos, color) {
+            for (let i = 0; i < 15; i++) {
+                const p = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.06), new THREE.MeshStandardMaterial({ color: color }));
+                p.position.copy(pos);
+                const vel = new THREE.Vector3((Math.random()-0.5)*0.5, Math.random()*0.5, (Math.random()-0.5)*0.5);
+                particles.push({ mesh: p, vel: vel, life: 1.0 });
+                scene.add(p);
+            }
+        }
+
+        // --- Shooting & Zoom ---
+        const raycaster = new THREE.Raycaster();
+        function shoot() {
+            if (!gameActive || isPaused || isReloading || ammo <= 0) return;
+            ammo--;
+            document.getElementById('ammo-count').innerText = ammo;
+            playSound('shoot');
+            recoilX += isZoomed ? 0.02 : 0.08; 
+            raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+            const intersects = raycaster.intersectObjects(targetBottles, true);
+            if (intersects.length > 0) {
+                let hit = intersects[0].object;
+                while(hit.parent && !targetBottles.includes(hit)) hit = hit.parent;
+                const index = targetBottles.indexOf(hit);
+                if (index > -1) {
+                    shatter(hit.position, intersects[0].object.material.color);
+                    scene.remove(hit); targetBottles.splice(index, 1);
+                    score++; document.getElementById('score').innerText = `SMASHED: ${score}`;
+                    setTimeout(createBottle, 800);
+                }
+            }
+            if (ammo === 0) reload();
+        }
+
+        function reload() {
+            if (isReloading) return;
+            isReloading = true;
+            if (isZoomed) toggleZoom();
+            document.getElementById('reload-msg').style.display = 'block';
+            setTimeout(() => {
+                ammo = 5; isReloading = false;
+                document.getElementById('ammo-count').innerText = ammo;
+                document.getElementById('reload-msg').style.display = 'none';
+            }, 1500);
+        }
+
+        function toggleZoom() {
+            if (!gameActive || isPaused || isReloading) return;
+            isZoomed = !isZoomed;
+            playSound('zoom');
+            camera.fov = isZoomed ? 12 : 75;
+            document.getElementById('scope-overlay').style.display = isZoomed ? 'block' : 'none';
+            document.getElementById('crosshair').style.display = isZoomed ? 'none' : 'block';
+            gunGroup.visible = !isZoomed;
+            camera.updateProjectionMatrix();
+        }
+
+        document.addEventListener('mousedown', (e) => {
+            if (document.pointerLockElement !== document.body || isPaused) return;
+            if (e.button === 0) shoot();
+            if (e.button === 2) toggleZoom();
+        });
+        document.body.oncontextmenu = () => false;
+
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyR' && ammo < 5) reload();
+        });
+
+        document.getElementById('sens-slider').oninput = (e) => sensitivity = parseFloat(e.target.value);
+
+        function animate() {
+            requestAnimationFrame(animate);
+            if (!isPaused && gameActive) {
+                recoilX *= 0.88; recoilY *= 0.88;
+                camera.rotation.x = targetRotationX + recoilX;
+                camera.rotation.y = targetRotationY + recoilY;
+                if (!isZoomed) {
+                    gunGroup.position.copy(camera.position);
+                    gunGroup.rotation.copy(camera.rotation);
+                    gunGroup.translateX(0.4); gunGroup.translateY(-0.35); gunGroup.translateZ(-0.8);
+                }
+                targetBottles.forEach((b, i) => {
+                    b.position.y = 0.6 + Math.sin(Date.now() * 0.002 + i) * 0.1;
+                    b.rotation.y += 0.02;
+                });
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    const p = particles[i];
+                    p.mesh.position.add(p.vel); p.vel.y -= 0.015; p.life -= 0.02;
+                    if (p.life <= 0) { scene.remove(p.mesh); particles.splice(i, 1); }
+                }
+            }
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        animate();
+    </script>
+</body>
+</html>
