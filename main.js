@@ -15,7 +15,7 @@ const games = [
   {
     title: "Tree Master 2D",
     link: "/games//treeMaster2d.html",
-    imageLink:"https://i.postimg.cc/j536Ls0k/wood-Master.webp"
+    imgLink:"https://i.postimg.cc/j536Ls0k/wood-Master.webp"
   },
   {
     title: "Make a mess Lab",
