@@ -28,6 +28,11 @@ const games = [
     imgLink: "https://i.postimg.cc/sXKX0pWV/dumb-AI.webp"
   },
   {
+    title: "Dino Mod",
+    link: "/games//dinoMod.html",
+    imgLink: "https://i.postimg.cc/Xvr0dmKy/dino-Mod.webp"
+  },
+  {
     title: "3D Arena",
     link: "/games//3dArena.html",
     imgLink: "https://i.postimg.cc/Gpy3xFMw/3d-Arena.webp"

@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex,nofollow">
+    <title>Dino Mod Menu: Pro Edition</title>
+    <style>
+        :root {
+            --bg: #f7f7f7;
+            --text: #535353;
+            --menu-bg: rgba(255, 255, 255, 0.95);
+            --accent: #777;
+            --shadow: rgba(0,0,0,0.1);
+        }
+
+        body.night-mode {
+            --bg: #202124;
+            --text: #e8eaed;
+            --menu-bg: rgba(45, 45, 48, 0.98);
+            --accent: #8ab4f8;
+            --shadow: rgba(0,0,0,0.4);
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg);
+            color: var(--text);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            transition: background-color 0.4s;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        #game-container {
+            position: relative;
+            width: 100%;
+            max-width: 800px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            image-rendering: pixelated;
+        }
+
+        #mod-menu {
+            position: absolute;
+            top: 180px; 
+            background: var(--menu-bg);
+            border: 1px solid var(--text);
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px var(--shadow);
+            z-index: 100;
+            width: 220px;
+            font-family: 'Courier New', Courier, monospace;
+        }
+
+        #mod-menu h2 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+            text-align: center;
+            border-bottom: 1px solid #ccc;
+            padding-bottom: 5px;
+        }
+
+        .mod-item {
+            margin-bottom: 10px;
+            display: flex;
+            flex-direction: column;
+            font-size: 11px;
+        }
+
+        .row {
+            flex-direction: row !important;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .instructions {
+            text-align: center;
+            margin-top: 10px;
+            font-size: 12px;
+            opacity: 0.6;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 250px; 
+            order: 2;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    <div class="instructions">Space to Jump | Mod Menu Below</div>
+    
+    <div id="mod-menu">
+        <h2>DINO MOD MENU</h2>
+        <div class="mod-item">
+            <label>Speed: <span id="val-speed">6</span></label>
+            <input type="range" id="mod-speed" min="3" max="30" value="6">
+        </div>
+        <div class="mod-item">
+            <label>Jump Power: <span id="val-jump">12</span></label>
+            <input type="range" id="mod-jump" min="8" max="25" value="12">
+        </div>
+        <div class="mod-item">
+            <label>Obstacle Density: <span id="val-density">5</span></label>
+            <input type="range" id="mod-density" min="1" max="20" value="5">
+        </div>
+        <div class="mod-item row">
+            <label>God Mode</label>
+            <input type="checkbox" id="mod-god">
+        </div>
+        <div class="mod-item row">
+            <label>Night Mode</label>
+            <input type="checkbox" id="mod-night">
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const settings = { speed: 6, jump: 12, density: 5, god: false, night: false };
+    let width, height, score = 0, gameActive = true, frameCount = 0;
+    let obstacles = [];
+    let clouds = [];
+    let nextObstacleFrame = 100;
+    let nextCloudFrame = 0;
+
+    const DINO_MAP = [
+        [0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1],
+        [0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1],
+        [0,0,0,0,0,0,0,0,0,0,0,1,1,2,1,1,1,1,1],
+        [0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1],
+        [0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0],
+        [0,0,0,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0],
+        [1,0,0,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0],
+        [1,0,0,0,0,0,0,0,0,1,1,1,1,1,1,1,1,1,0],
+        [1,0,0,0,0,0,0,0,1,1,1,1,1,1,1,0,0,0,0],
+        [1,1,0,0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0],
+        [0,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0],
+        [0,0,1,1,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0],
+        [0,0,0,1,1,1,1,1,1,1,1,1,0,0,0,0,0,0,0],
+        [0,0,0,0,1,1,1,1,1,1,1,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,1,1,1,1,1,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,1,1,0,1,1,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,1,0,0,0,1,0,0,0,0,0,0,0,0,0],
+        [0,0,0,0,0,1,1,0,0,1,1,0,0,0,0,0,0,0,0]
+    ];
+
+    const CACTUS_MAP = [
+        [0,0,1,1,0,0], [0,0,1,1,0,0], [1,0,1,1,0,1], [1,0,1,1,0,1],
+        [1,1,1,1,1,1], [0,0,1,1,0,0], [0,0,1,1,0,0], [0,0,1,1,0,0],
+        [0,0,1,1,0,0], [0,0,1,1,0,0]
+    ];
+
+    // Refined Cloud Sprite
+    const CLOUD_MAP = [
+        [0,0,0,0,1,1,1,1,0,0,0],
+        [0,0,1,1,1,1,1,1,1,1,0],
+        [1,1,1,1,1,1,1,1,1,1,1],
+        [0,1,1,1,1,1,1,1,1,1,0]
+    ];
+
+    function drawPixelMap(map, x, y, size, colorOverride) {
+        ctx.fillStyle = colorOverride || (settings.night ? '#e8eaed' : '#535353');
+        for (let r = 0; r < map.length; r++) {
+            for (let c = 0; c < map[r].length; c++) {
+                if (map[r][c] === 1) {
+                    ctx.fillRect(x + c * size, y + r * size, size, size);
+                } else if (map[r][c] === 2) {
+                    ctx.fillStyle = settings.night ? '#202124' : '#fff';
+                    ctx.fillRect(x + c * size, y + r * size, size, size);
+                    ctx.fillStyle = colorOverride || (settings.night ? '#e8eaed' : '#535353');
+                }
+            }
+        }
+    }
+
+    const dino = {
+        x: 50, y: 0, w: 40, h: 40, dy: 0, gravity: 0.6, grounded: true, legStep: 0,
+        draw() {
+            const pixelSize = 2.2;
+            let drawY = height - this.y - (DINO_MAP.length * pixelSize) - 2;
+            let currentMap = JSON.parse(JSON.stringify(DINO_MAP));
+            if (this.grounded) {
+                this.legStep = Math.floor(frameCount / 6) % 2;
+                if (this.legStep === 0) { currentMap[17][5] = 0; currentMap[17][6] = 0; }
+                else { currentMap[17][9] = 0; currentMap[17][10] = 0; }
+            }
+            drawPixelMap(currentMap, this.x, drawY, pixelSize);
+        },
+        update() {
+            if (!this.grounded) { this.dy += this.gravity; this.y -= this.dy; }
+            if (this.y <= 0) { this.y = 0; this.dy = 0; this.grounded = true; }
+        },
+        jump() { if (this.grounded) { this.dy = -settings.jump; this.grounded = false; } }
+    };
+
+    class Obstacle {
+        constructor() {
+            this.x = width;
+            this.scale = 2 + Math.random() * 1.5;
+            this.w = CACTUS_MAP[0].length * this.scale;
+            this.h = CACTUS_MAP.length * this.scale;
+        }
+        draw() { drawPixelMap(CACTUS_MAP, this.x, height - this.h - 2, this.scale); }
+        update() { this.x -= settings.speed; }
+    }
+
+    class Cloud {
+        constructor() {
+            this.x = width;
+            this.y = 20 + Math.random() * 60;
+            // Clouds move slower than the floor for parallax effect
+            this.speed = (settings.speed * 0.2) + (Math.random() * 0.5);
+            this.scale = 3 + Math.random() * 3; // Increased size
+        }
+        draw() {
+            // Darker grey for day, lighter grey for night to ensure visibility
+            const cloudColor = settings.night ? '#555' : '#d0d0d0';
+            drawPixelMap(CLOUD_MAP, this.x, this.y, this.scale, cloudColor);
+        }
+        update() { this.x -= this.speed; }
+    }
+
+    function checkCollision(d, o) {
+        if (settings.god) return false;
+        const padding = 6;
+        return (d.x + padding < o.x + o.w - padding && d.x + d.w - padding > o.x + padding &&
+                height - d.y - d.h + padding < height - 2 && height - d.y - padding > height - o.h);
+    }
+
+    function gameLoop() {
+        ctx.clearRect(0, 0, width, height);
+        ctx.strokeStyle = settings.night ? '#555' : '#ddd';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(0, height-2); ctx.lineTo(width, height-2); ctx.stroke();
+
+        // Always update and draw clouds (even when game over)
+        if (gameActive) {
+            frameCount++;
+            score += settings.speed / 10;
+            if (frameCount >= nextCloudFrame) {
+                clouds.push(new Cloud());
+                nextCloudFrame = frameCount + 60 + Math.random() * 150;
+            }
+        }
+        
+        for (let i = clouds.length - 1; i >= 0; i--) {
+            if (gameActive) clouds[i].update();
+            clouds[i].draw();
+            if (clouds[i].x < -150) clouds.splice(i, 1);
+        }
+
+        if (gameActive) {
+            dino.update();
+            if (frameCount >= nextObstacleFrame) {
+                obstacles.push(new Obstacle());
+                nextObstacleFrame = frameCount + Math.floor(Math.random() * 30) + (200 / settings.density);
+            }
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].update(); obstacles[i].draw();
+                if (checkCollision(dino, obstacles[i])) gameActive = false;
+                if (obstacles[i].x < -50) obstacles.splice(i, 1);
+            }
+        } else {
+            obstacles.forEach(o => o.draw());
+            ctx.fillStyle = settings.night ? '#fff' : '#535353';
+            ctx.textAlign = "center"; ctx.font = "bold 20px Courier New";
+            ctx.fillText("G A M E  O V E R", width/2, height/2 - 20);
+            ctx.font = "12px Courier New"; ctx.fillText("PRESS SPACE TO RESTART", width/2, height/2 + 10);
+        }
+        
+        dino.draw();
+        ctx.textAlign = "right"; ctx.fillStyle = settings.night ? '#fff' : '#535353';
+        ctx.font = "16px 'Courier New'"; ctx.fillText(Math.floor(score).toString().padStart(5, '0'), width - 10, 25);
+        requestAnimationFrame(gameLoop);
+    }
+
+    window.addEventListener('keydown', e => {
+        if (e.code === 'Space' || e.code === 'ArrowUp') {
+            if (!gameActive) {
+                score = 0; obstacles = []; clouds = []; gameActive = true; 
+                dino.y = 0; frameCount = 0; nextObstacleFrame = 100; nextCloudFrame = 0;
+            } else dino.jump();
+            e.preventDefault();
+        }
+    });
+
+    const updateSetting = (id, key, isFloat = false) => {
+        document.getElementById(id).addEventListener('input', e => {
+            settings[key] = isFloat ? parseFloat(e.target.value) : parseInt(e.target.value);
+            document.getElementById('val-'+key).innerText = e.target.value;
+        });
+    };
+    updateSetting('mod-speed', 'speed');
+    updateSetting('mod-jump', 'jump');
+    updateSetting('mod-density', 'density');
+    document.getElementById('mod-god').addEventListener('change', e => settings.god = e.target.checked);
+    document.getElementById('mod-night').addEventListener('change', e => {
+        settings.night = e.target.checked;
+        document.body.classList.toggle('night-mode', settings.night);
+    });
+
+    function resize() {
+        const container = document.getElementById('game-container');
+        width = container.clientWidth;
+        height = 150; canvas.width = width; canvas.height = height;
+    }
+    window.addEventListener('resize', resize);
+    resize();
+    gameLoop();
+</script>
+</body>
+</html>
