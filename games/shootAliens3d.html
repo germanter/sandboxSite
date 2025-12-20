@@ -1,293 +1,486 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="robots" content="noindex,nofollow">
-    <title>TOY BOX BATTLE: PLASTIC PANIC</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Titan+One&family=Short+Stack&display=swap');
-        body { margin: 0; overflow: hidden; background: #87CEEB; font-family: 'Titan One', cursive; user-select: none; }
-        
-        #hud {
-            position: absolute; inset: 0; pointer-events: none; z-index: 10;
-            padding: 25px; display: flex; flex-direction: column; justify-content: space-between;
-        }
-        .ui-text { color: #fff; text-shadow: 4px 4px 0px #ff4500, -2px -2px 0px #000; font-size: 32px; }
-        
-        #eight-ball-msg {
-            position: absolute; bottom: 100px; right: 50px; width: 150px; height: 150px;
-            background: #222; border: 8px solid #000; border-radius: 50%;
-            display: flex; justify-content: center; align-items: center; text-align: center;
-            font-family: 'Short Stack', cursive; font-size: 14px; color: #fff; padding: 10px;
-            box-sizing: border-box; border-style: double; box-shadow: 0 10px 20px rgba(0,0,0,0.5);
-        }
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>TOY BOX BATTLE: PLASTIC PANIC</title>
 
-        #crosshair {
-            position: absolute; top: 50%; left: 50%; width: 40px; height: 40px;
-            border: 4px solid #fff; border-radius: 10px; transform: translate(-50%, -50%) rotate(45deg);
-            pointer-events: none; mix-blend-mode: difference;
-        }
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Titan+One&family=Short+Stack&display=swap');
 
-        #overlay {
-            position: absolute; inset: 0; background: radial-gradient(circle, #ffeb3b 0%, #f44336 100%);
-            display: flex; flex-direction: column; justify-content: center; align-items: center; z-index: 100;
-        }
-        h1 { font-size: 80px; color: #fff; text-shadow: 8px 8px 0px #2196f3; margin: 0; text-align: center; line-height: 0.9; }
-        .start-btn {
-            background: #4caf50; border: 6px solid #fff; padding: 20px 50px; font-size: 35px;
-            color: #fff; cursor: pointer; border-radius: 30px; font-family: 'Titan One'; margin-top: 30px;
-            box-shadow: 0 10px 0 #2e7d32; transition: 0.1s;
-        }
-        .start-btn:active { transform: translateY(5px); box-shadow: 0 5px 0 #2e7d32; }
-    </style>
+    :root { --ui: 1; }
+
+    html, body { width: 100%; height: 100%; }
+    body {
+      margin: 0;
+      overflow: hidden;
+      background: #87CEEB;
+      font-family: 'Titan One', cursive;
+      user-select: none;
+    }
+    canvas { display: block; }
+
+    #hud {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 10;
+      padding: calc(25px * var(--ui));
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      box-sizing: border-box;
+    }
+
+    .ui-text {
+      color: #fff;
+      text-shadow:
+        calc(4px * var(--ui)) calc(4px * var(--ui)) 0px #ff4500,
+        calc(-2px * var(--ui)) calc(-2px * var(--ui)) 0px #000;
+      font-size: calc(32px * var(--ui));
+    }
+
+    #eight-ball-msg {
+      position: fixed;
+      bottom: calc(100px * var(--ui));
+      right: calc(50px * var(--ui));
+      width: calc(150px * var(--ui));
+      height: calc(150px * var(--ui));
+      background: #222;
+      border: calc(8px * var(--ui)) double #000;
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      font-family: 'Short Stack', cursive;
+      font-size: calc(14px * var(--ui));
+      color: #fff;
+      padding: calc(10px * var(--ui));
+      box-sizing: border-box;
+      box-shadow: 0 calc(10px * var(--ui)) calc(20px * var(--ui)) rgba(0,0,0,0.5);
+      z-index: 11;
+    }
+
+    #crosshair {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      width: calc(40px * var(--ui));
+      height: calc(40px * var(--ui));
+      border: calc(4px * var(--ui)) solid #fff;
+      border-radius: calc(10px * var(--ui));
+      transform: translate(-50%, -50%) rotate(45deg);
+      pointer-events: none;
+      mix-blend-mode: difference;
+      z-index: 12;
+    }
+
+    #overlay {
+      position: fixed;
+      inset: 0;
+      background: radial-gradient(circle, #ffeb3b 0%, #f44336 100%);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+      padding: calc(20px * var(--ui));
+      box-sizing: border-box;
+      text-align: center;
+    }
+
+    h1 {
+      font-size: calc(80px * var(--ui));
+      color: #fff;
+      text-shadow: calc(8px * var(--ui)) calc(8px * var(--ui)) 0px #2196f3;
+      margin: 0;
+      line-height: 0.9;
+    }
+
+    .overlay-sub {
+      color:#fff;
+      font-size: calc(20px * var(--ui));
+      font-family: 'Short Stack', cursive;
+      margin-top: calc(10px * var(--ui));
+    }
+
+    .start-btn {
+      background: #4caf50;
+      border: calc(6px * var(--ui)) solid #fff;
+      padding: calc(20px * var(--ui)) calc(50px * var(--ui));
+      font-size: calc(35px * var(--ui));
+      color: #fff;
+      cursor: pointer;
+      border-radius: calc(30px * var(--ui));
+      font-family: 'Titan One';
+      margin-top: calc(30px * var(--ui));
+      box-shadow: 0 calc(10px * var(--ui)) 0 #2e7d32;
+      transition: 0.1s;
+    }
+    .start-btn:active {
+      transform: translateY(calc(5px * var(--ui)));
+      box-shadow: 0 calc(5px * var(--ui)) 0 #2e7d32;
+    }
+  </style>
 </head>
+
 <body>
-
-    <div id="hud">
-        <div style="display: flex; justify-content: space-between;">
-            <div class="ui-text">POINTS: <span id="score">0</span></div>
-            <div class="ui-text">PLAYTIME: <span id="timer">30</span>s</div>
-        </div>
-        <div id="eight-ball-msg">OUTLOOK... POSITIVE?</div>
+  <div id="hud">
+    <div style="display: flex; justify-content: space-between;">
+      <div class="ui-text">POINTS: <span id="score">0</span></div>
+      <div class="ui-text">PLAYTIME: <span id="timer">30</span>s</div>
     </div>
+    <div id="eight-ball-msg">OUTLOOK... POSITIVE?</div>
+  </div>
 
-    <div id="crosshair"></div>
+  <div id="crosshair"></div>
 
-    <div id="overlay">
-        <h1>PLASTIC<br>PANIC!</h1>
-        <p style="color:#fff; font-size: 20px; font-family: 'Short Stack';">DART THE ALIENS BEFORE MOM GETS HOME!</p>
-        <button class="start-btn" id="start-btn">PLAY!</button>
-    </div>
+  <div id="overlay">
+    <h1>PLASTIC<br/>PANIC!</h1>
+    <p class="overlay-sub">DART THE ALIENS BEFORE MOM GETS HOME!</p>
+    <button class="start-btn" id="start-btn">PLAY!</button>
+  </div>
 
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-            }
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+
+    // --- TOY BOX AUDIO ---
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playToySound(f, type, d, v=0.1) {
+      const o = audioCtx.createOscillator(), g = audioCtx.createGain();
+      o.type = type; o.frequency.setValueAtTime(f, audioCtx.currentTime);
+      g.gain.setValueAtTime(v, audioCtx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + d);
+      o.connect(g); g.connect(audioCtx.destination);
+      o.start(); o.stop(audioCtx.currentTime + d);
+    }
+
+    // --- VARS ---
+    let scene, camera, renderer, controls, clock;
+    let blaster, ballCharm, darts = [], targets = [], particles = [];
+    let score = 0, timeLeft = 30, gameActive = false;
+
+    const ballMsgs = ["YES", "NO", "TRY AGAIN", "BONK IT", "AIM BETTER", "UNCERTAIN", "DEFINITELY", "SOON"];
+
+    // ✅ UI sabitleme: clamp yok, tam ters ölçek
+    let baseDPR = window.devicePixelRatio || 1;
+    let lastDPR = baseDPR;
+
+    function applyUiScale() {
+      const dpr = window.devicePixelRatio || 1;
+      const uiScale = baseDPR / dpr; // ters ölçek
+      document.documentElement.style.setProperty('--ui', uiScale.toFixed(6));
+      lastDPR = dpr;
+    }
+
+    function maybeUpdateUiScale() {
+      const dpr = window.devicePixelRatio || 1;
+      if (Math.abs(dpr - lastDPR) > 1e-6) applyUiScale();
+    }
+
+    function init() {
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x87CEEB);
+      scene.fog = new THREE.Fog(0x87CEEB, 15, 60);
+
+      camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1000);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(window.innerWidth, window.innerHeight, true);
+      document.body.appendChild(renderer.domElement);
+
+      controls = new PointerLockControls(camera, document.body);
+      clock = new THREE.Clock();
+
+      // Lighting
+      scene.add(new THREE.AmbientLight(0xffffff, 0.9));
+      const sun = new THREE.DirectionalLight(0xffffff, 1);
+      sun.position.set(10, 20, 10);
+      scene.add(sun);
+
+      // Floor
+      const floor = new THREE.Mesh(
+        new THREE.PlaneGeometry(100, 100),
+        new THREE.MeshStandardMaterial({ color: 0x4caf50, roughness: 1 })
+      );
+      floor.rotation.x = -Math.PI/2;
+      floor.position.y = -2;
+      scene.add(floor);
+
+      // Blocks
+      for(let i=0; i<15; i++) {
+        const block = new THREE.Mesh(
+          new THREE.BoxGeometry(2, 2, 2),
+          new THREE.MeshStandardMaterial({color: Math.random() * 0xffffff})
+        );
+        block.position.set((Math.random()-0.5)*40, -1, (Math.random()-0.5)*40 - 20);
+        scene.add(block);
+      }
+
+      // Blaster
+      blaster = new THREE.Group();
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(0.3, 0.4, 0.7),
+        new THREE.MeshStandardMaterial({color: 0xffa500})
+      );
+      const handle = new THREE.Mesh(
+        new THREE.BoxGeometry(0.15, 0.5, 0.2),
+        new THREE.MeshStandardMaterial({color: 0x2196f3})
+      );
+      handle.position.set(0, -0.4, 0.2);
+      blaster.add(body, handle);
+
+      ballCharm = new THREE.Mesh(
+        new THREE.SphereGeometry(0.12, 16, 16),
+        new THREE.MeshStandardMaterial({color: 0x000000})
+      );
+      ballCharm.position.set(-0.25, -0.2, 0);
+      blaster.add(ballCharm);
+
+      blaster.position.set(0.6, -0.5, -1);
+      camera.add(blaster);
+      scene.add(camera);
+
+      document.getElementById('start-btn').onclick = startGame;
+      window.onmousedown = shoot;
+
+      // ✅ UI + resize
+      window.addEventListener('resize', () => { resize(); applyUiScale(); });
+      window.addEventListener('orientationchange', () => { resize(); applyUiScale(); });
+
+      applyUiScale();
+      resize();
+      animate();
+    }
+
+    function resize() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.setSize(w, h, true);
+    }
+
+    function resizeToDisplaySize() {
+      const canvas = renderer.domElement;
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+      const w = Math.floor(canvas.clientWidth * pixelRatio);
+      const h = Math.floor(canvas.clientHeight * pixelRatio);
+      if (canvas.width !== w || canvas.height !== h) {
+        renderer.setPixelRatio(pixelRatio);
+        renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
+        camera.aspect = canvas.clientWidth / canvas.clientHeight;
+        camera.updateProjectionMatrix();
+      }
+    }
+
+    function createTarget() {
+      const group = new THREE.Group();
+
+      const body = new THREE.Mesh(
+        new THREE.CapsuleGeometry(0.5, 0.8, 4, 16),
+        new THREE.MeshStandardMaterial({color: 0x39ff14})
+      );
+      group.add(body);
+
+      const ant = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.02, 0.02, 0.4),
+        new THREE.MeshStandardMaterial({color: 0x39ff14})
+      );
+      ant.position.y = 1;
+      const knob = new THREE.Mesh(
+        new THREE.SphereGeometry(0.1),
+        new THREE.MeshStandardMaterial({color: 0xff0000})
+      );
+      knob.position.y = 1.2;
+      group.add(ant, knob);
+
+      const eyeGeo = new THREE.SphereGeometry(0.2, 16, 16);
+      const eyeMat = new THREE.MeshBasicMaterial({color: 0x000000});
+      const el = new THREE.Mesh(eyeGeo, eyeMat); el.position.set(-0.25, 0.4, 0.4); el.scale.z = 0.2;
+      const er = new THREE.Mesh(eyeGeo, eyeMat); er.position.set(0.25, 0.4, 0.4); er.scale.z = 0.2;
+      group.add(el, er);
+
+      group.position.set((Math.random()-0.5)*25, 0.5, -15 - Math.random()*15);
+      scene.add(group);
+      targets.push(group);
+    }
+
+    function startGame() {
+      if (audioCtx.state === 'suspended') audioCtx.resume();
+
+      score = 0;
+      timeLeft = 30;
+      gameActive = true;
+
+      document.getElementById('score').innerText = score;
+      document.getElementById('timer').innerText = timeLeft;
+
+      document.getElementById('overlay').style.display = 'none';
+      controls.lock();
+
+      targets.forEach(t => scene.remove(t));
+      targets = [];
+      darts.forEach(d => scene.remove(d.mesh));
+      darts = [];
+      particles.forEach(p => scene.remove(p));
+      particles = [];
+
+      for(let i=0; i<8; i++) createTarget();
+
+      setInterval(() => {
+        if(gameActive) document.getElementById('eight-ball-msg').innerText =
+          ballMsgs[Math.floor(Math.random()*ballMsgs.length)];
+      }, 3000);
+    }
+
+    function shoot() {
+      if(!controls.isLocked || !gameActive) return;
+
+      playToySound(300, 'square', 0.1);
+      blaster.position.z += 0.2;
+
+      const dartGroup = new THREE.Group();
+      const shaft = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.03, 0.03, 0.6),
+        new THREE.MeshStandardMaterial({color: 0xffff00})
+      );
+      shaft.rotation.x = Math.PI/2;
+
+      const tip = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.08, 0.1, 0.1),
+        new THREE.MeshStandardMaterial({color: 0xff0000})
+      );
+      tip.rotation.x = Math.PI/2; tip.position.z = -0.35;
+      dartGroup.add(shaft, tip);
+
+      dartGroup.position.copy(camera.position);
+      dartGroup.quaternion.copy(camera.quaternion);
+      scene.add(dartGroup);
+      darts.push({ mesh: dartGroup, life: 1.0 });
+
+      const ray = new THREE.Raycaster();
+      ray.setFromCamera(new THREE.Vector2(0,0), camera);
+      const hits = ray.intersectObjects(targets, true);
+
+      if(hits.length > 0) {
+        let t = hits[0].object;
+        while(t.parent && t.parent !== scene) t = t.parent;
+
+        score += 100;
+        playToySound(600, 'sine', 0.2);
+
+        explode(t.position, 0x39ff14);
+        scene.remove(t);
+        targets = targets.filter(o => o !== t);
+        createTarget();
+
+        document.getElementById('score').innerText = score;
+      }
+    }
+
+    function explode(pos, color) {
+      for(let i=0; i<15; i++) {
+        const p = new THREE.Mesh(
+          new THREE.SphereGeometry(0.15),
+          new THREE.MeshBasicMaterial({color: color, transparent: true, opacity: 0.8})
+        );
+        p.position.copy(pos);
+        p.userData = {
+          v: new THREE.Vector3(
+            (Math.random()-0.5)*0.7,
+            (Math.random()-0.5)*0.7,
+            (Math.random()-0.5)*0.7
+          )
+        };
+        scene.add(p);
+        particles.push(p);
+      }
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+
+      // ✅ zoom/scale değişimi olursa UI sabit kalsın
+      maybeUpdateUiScale();
+
+      // ✅ canvas ölçü değişimi
+      resizeToDisplaySize();
+
+      const delta = clock.getDelta();
+      const time = clock.elapsedTime;
+
+      if(gameActive) {
+        timeLeft -= delta;
+        document.getElementById('timer').innerText = Math.max(0, Math.ceil(timeLeft));
+        if(timeLeft <= 0) endGame();
+      }
+
+      ballCharm.rotation.y += delta * 2;
+      ballCharm.rotation.x += delta;
+
+      blaster.position.z = THREE.MathUtils.lerp(blaster.position.z, -1, 0.1);
+      blaster.position.x = 0.6 + Math.sin(time*1.5)*0.01;
+      blaster.position.y = -0.5 + Math.cos(time*2.5)*0.01;
+
+      for (let i = darts.length - 1; i >= 0; i--) {
+        const d = darts[i];
+        d.mesh.translateZ(-1.2);
+        d.life -= delta;
+        if(d.life <= 0) {
+          scene.remove(d.mesh);
+          darts.splice(i, 1);
         }
-    </script>
+      }
 
-    <script type="module">
-        import * as THREE from 'three';
-        import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
+      targets.forEach(t => {
+        t.rotation.z = Math.sin(time * 3 + t.position.x) * 0.2;
+        t.rotation.x = Math.cos(time * 2 + t.position.z) * 0.1;
+      });
 
-        // --- TOY BOX AUDIO ---
-        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        function playToySound(f, type, d, v=0.1) {
-            const o = audioCtx.createOscillator(), g = audioCtx.createGain();
-            o.type = type; o.frequency.setValueAtTime(f, audioCtx.currentTime);
-            g.gain.setValueAtTime(v, audioCtx.currentTime);
-            g.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + d);
-            o.connect(g); g.connect(audioCtx.destination);
-            o.start(); o.stop(audioCtx.currentTime + d);
+      for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.position.add(p.userData.v);
+        p.scale.multiplyScalar(0.95);
+        if(p.scale.x < 0.1) {
+          scene.remove(p);
+          particles.splice(i, 1);
         }
+      }
 
-        // --- VARS ---
-        let scene, camera, renderer, controls, clock;
-        let blaster, ballCharm, darts = [], targets = [], particles = [];
-        let score = 0, timeLeft = 30, gameActive = false;
+      renderer.render(scene, camera);
+    }
 
-        const ballMsgs = ["YES", "NO", "TRY AGAIN", "BONK IT", "AIM BETTER", "UNCERTAIN", "DEFINITELY", "SOON"];
+    function endGame() {
+      gameActive = false;
+      controls.unlock();
 
-        function init() {
-            scene = new THREE.Scene();
-            scene.background = new THREE.Color(0x87CEEB); // Sky Blue
-            scene.fog = new THREE.Fog(0x87CEEB, 15, 60);
+      const over = document.getElementById('overlay');
+      over.style.display = 'flex';
+      over.innerHTML = `
+        <h1>NAP TIME!</h1>
+        <p class="overlay-sub" style="font-size: calc(30px * var(--ui)); margin: calc(18px * var(--ui)) 0 0;">
+          FINAL SCORE: ${score}
+        </p>
+        <button class="start-btn" onclick="location.reload()">RE-PLAY!</button>
+      `;
+    }
 
-            camera = new THREE.PerspectiveCamera(75, window.innerWidth/window.innerHeight, 0.1, 1000);
-            renderer = new THREE.WebGLRenderer({ antialias: true });
-            renderer.setSize(window.innerWidth, window.innerHeight);
-            document.body.appendChild(renderer.domElement);
-
-            controls = new PointerLockControls(camera, document.body);
-            clock = new THREE.Clock();
-
-            // Lighting: Sunny Room
-            scene.add(new THREE.AmbientLight(0xffffff, 0.9));
-            const sun = new THREE.DirectionalLight(0xffffff, 1);
-            sun.position.set(10, 20, 10);
-            scene.add(sun);
-
-            // Floor: Carpet Texture (Greenish)
-            const floorGeo = new THREE.PlaneGeometry(100, 100);
-            const floorMat = new THREE.MeshStandardMaterial({ color: 0x4caf50, roughness: 1 });
-            const floor = new THREE.Mesh(floorGeo, floorMat);
-            floor.rotation.x = -Math.PI/2;
-            floor.position.y = -2;
-            scene.add(floor);
-
-            // Room Decor: Building Blocks
-            for(let i=0; i<15; i++) {
-                const block = new THREE.Mesh(
-                    new THREE.BoxGeometry(2, 2, 2),
-                    new THREE.MeshStandardMaterial({color: Math.random() * 0xffffff})
-                );
-                block.position.set((Math.random()-0.5)*40, -1, (Math.random()-0.5)*40 - 20);
-                scene.add(block);
-            }
-
-            // DART BLASTER (Plastic Look)
-            blaster = new THREE.Group();
-            const body = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.4, 0.7), new THREE.MeshStandardMaterial({color: 0xffa500}));
-            const handle = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.5, 0.2), new THREE.MeshStandardMaterial({color: 0x2196f3}));
-            handle.position.set(0, -0.4, 0.2);
-            blaster.add(body, handle);
-
-            // Magic 8-Ball Charm
-            ballCharm = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 16), new THREE.MeshStandardMaterial({color: 0x000000}));
-            ballCharm.position.set(-0.25, -0.2, 0);
-            blaster.add(ballCharm);
-
-            blaster.position.set(0.6, -0.5, -1);
-            camera.add(blaster);
-            scene.add(camera);
-
-            document.getElementById('start-btn').onclick = startGame;
-            window.onmousedown = shoot;
-            animate();
-        }
-
-        function createTarget() {
-            const group = new THREE.Group();
-            
-            // Inflatable Alien Body
-            const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.5, 0.8, 4, 16), new THREE.MeshStandardMaterial({color: 0x39ff14}));
-            group.add(body);
-
-            // Antenna
-            const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.4), new THREE.MeshStandardMaterial({color: 0x39ff14}));
-            ant.position.y = 1;
-            const knob = new THREE.Mesh(new THREE.SphereGeometry(0.1), new THREE.MeshStandardMaterial({color: 0xff0000}));
-            knob.position.y = 1.2;
-            group.add(ant, knob);
-
-            // Large Alien Eyes
-            const eyeGeo = new THREE.SphereGeometry(0.2, 16, 16);
-            const eyeMat = new THREE.MeshBasicMaterial({color: 0x000000});
-            const el = new THREE.Mesh(eyeGeo, eyeMat); el.position.set(-0.25, 0.4, 0.4); el.scale.z = 0.2;
-            const er = new THREE.Mesh(eyeGeo, eyeMat); er.position.set(0.25, 0.4, 0.4); er.scale.z = 0.2;
-            group.add(el, er);
-
-            group.position.set((Math.random()-0.5)*25, 0.5, -15 - Math.random()*15);
-            group.userData = { w: 0, wDir: 1 };
-            scene.add(group);
-            targets.push(group);
-        }
-
-        function startGame() {
-            if (audioCtx.state === 'suspended') audioCtx.resume();
-            score = 0; timeLeft = 30; gameActive = true;
-            document.getElementById('overlay').style.display = 'none';
-            controls.lock();
-            for(let i=0; i<8; i++) createTarget();
-            
-            // 8-Ball Message cycle
-            setInterval(() => {
-                if(gameActive) document.getElementById('eight-ball-msg').innerText = ballMsgs[Math.floor(Math.random()*ballMsgs.length)];
-            }, 3000);
-        }
-
-        function shoot() {
-            if(!controls.isLocked || !gameActive) return;
-            
-            playToySound(300, 'square', 0.1); // Plastic "thwip"
-            blaster.position.z += 0.2; // Recoil
-
-            // Suction Dart Projectile
-            const dartGroup = new THREE.Group();
-            const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.6), new THREE.MeshStandardMaterial({color: 0xffff00}));
-            shaft.rotation.x = Math.PI/2;
-            const tip = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.1, 0.1), new THREE.MeshStandardMaterial({color: 0xff0000}));
-            tip.rotation.x = Math.PI/2; tip.position.z = -0.35;
-            dartGroup.add(shaft, tip);
-            
-            dartGroup.position.copy(camera.position);
-            dartGroup.quaternion.copy(camera.quaternion);
-            scene.add(dartGroup);
-            darts.push({ mesh: dartGroup, life: 1.0 });
-
-            const ray = new THREE.Raycaster();
-            ray.setFromCamera(new THREE.Vector2(0,0), camera);
-            const hits = ray.intersectObjects(targets, true);
-
-            if(hits.length > 0) {
-                let t = hits[0].object;
-                while(t.parent !== scene) t = t.parent;
-
-                score += 100;
-                playToySound(600, 'sine', 0.2); // Squeak
-                
-                explode(t.position, 0x39ff14);
-                scene.remove(t);
-                targets = targets.filter(o => o !== t);
-                createTarget();
-                document.getElementById('score').innerText = score;
-            }
-        }
-
-        function explode(pos, color) {
-            for(let i=0; i<15; i++) {
-                const p = new THREE.Mesh(new THREE.SphereGeometry(0.15), new THREE.MeshBasicMaterial({color: color, transparent: true, opacity: 0.8}));
-                p.position.copy(pos);
-                p.userData = {v: new THREE.Vector3((Math.random()-0.5)*0.7, (Math.random()-0.5)*0.7, (Math.random()-0.5)*0.7)};
-                scene.add(p);
-                particles.push(p);
-            }
-        }
-
-        function animate() {
-            requestAnimationFrame(animate);
-            const delta = clock.getDelta();
-            const time = clock.elapsedTime;
-
-            if(gameActive) {
-                timeLeft -= delta;
-                document.getElementById('timer').innerText = Math.ceil(timeLeft);
-                if(timeLeft <= 0) endGame();
-            }
-
-            // 8-Ball Charm Rotation
-            ballCharm.rotation.y += delta * 2;
-            ballCharm.rotation.x += delta;
-
-            // Blaster Sway
-            blaster.position.z = THREE.MathUtils.lerp(blaster.position.z, -1, 0.1);
-            blaster.position.x = 0.6 + Math.sin(time*1.5)*0.01;
-            blaster.position.y = -0.5 + Math.cos(time*2.5)*0.01;
-
-            // Darts physics
-            darts.forEach((d, i) => {
-                d.mesh.translateZ(-1.2);
-                d.life -= delta;
-                if(d.life <= 0) { scene.remove(d.mesh); darts.splice(i,1); }
-            });
-
-            // Target Wobble (Spring-like)
-            targets.forEach(t => {
-                t.rotation.z = Math.sin(time * 3 + t.position.x) * 0.2;
-                t.rotation.x = Math.cos(time * 2 + t.position.z) * 0.1;
-            });
-
-            // Particles
-            particles.forEach((p, i) => {
-                p.position.add(p.userData.v);
-                p.scale.multiplyScalar(0.95);
-                if(p.scale.x < 0.1) { scene.remove(p); particles.splice(i,1); }
-            });
-
-            renderer.render(scene, camera);
-        }
-
-        function endGame() {
-            gameActive = false; controls.unlock();
-            const over = document.getElementById('overlay');
-            over.style.display = 'flex';
-            over.innerHTML = `<h1>NAP TIME!</h1><p style="font-size:30px">FINAL SCORE: ${score}</p><button class="start-btn" onclick="location.reload()">RE-PLAY!</button>`;
-        }
-
-        init();
-    </script>
+    init();
+  </script>
 </body>
 </html>
