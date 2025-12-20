@@ -143,3 +143,28 @@ games.forEach((game,index) => {
 
   grid.appendChild(card);
 });
+
+
+
+// Panel Kontrol Fonksiyonu
+function setupEmailPanel() {
+    const btn = document.getElementById('sendItBtn');
+    const panel = document.getElementById('emailPanel');
+    const close = document.getElementById('closePanel');
+
+    // Elementlerin sayfada olup olmadığını kontrol edelim (hata almamak için)
+    if (btn && panel && close) {
+        btn.addEventListener('click', () => {
+            panel.classList.remove('hidden');
+            btn.classList.add('hidden');
+        });
+
+        close.addEventListener('click', () => {
+            panel.classList.add('hidden');
+            btn.classList.remove('hidden');
+        });
+    }
+}
+
+// Sayfa yüklendiğinde fonksiyonu çalıştır
+document.addEventListener('DOMContentLoaded', setupEmailPanel);
