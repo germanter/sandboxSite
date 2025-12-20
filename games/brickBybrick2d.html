@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="robots" content="noindex,nofollow">
+  <title>Skyline Stacker: Crane Edition</title>
+  <style>
+    :root{
+      --primary:#00f2ff;
+      --bg:#050508;
+      --panel:rgba(255,255,255,0.10);
+      --panel2:rgba(0,0,0,0.85);
+      --muted:#9aa0a6;
+    }
+    html, body {
+      margin:0; padding:0;
+      width:100%; height:100%;
+      overflow:hidden;
+      background:var(--bg);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      touch-action:none;
+      user-select:none;
+    }
+    canvas { display:block; width:100vw; height:100vh; }
+    #ui { position:absolute; inset:0; color:#fff; pointer-events:none; }
+
+    .score-panel{
+      position:absolute; top:16px; right:16px;
+      background:var(--panel);
+      padding:14px 18px;
+      border-radius:12px;
+      backdrop-filter: blur(10px);
+      border:1px solid rgba(0,242,255,0.25);
+      text-align:right;
+      min-width: 160px;
+    }
+    #score-label{ font-size:11px; color:var(--primary); letter-spacing:2px; }
+    #score-big{ font-size:30px; font-weight:900; margin:2px 0 0 0; }
+    #substats{ font-size:11px; color:var(--muted); margin-top:6px; line-height:1.35; }
+
+    .altitude-panel{
+      position:absolute; top:16px; left:16px;
+      font-weight:800; letter-spacing:1.5px;
+      background:rgba(255,255,255,0.08);
+      border:1px solid rgba(255,255,255,0.12);
+      padding:10px 14px; border-radius:12px;
+      backdrop-filter: blur(10px);
+    }
+
+    #hint {
+      position:absolute; left:50%; transform:translateX(-50%);
+      top:16px;
+      font-size:12px;
+      color:rgba(255,255,255,0.75);
+      background:rgba(0,0,0,0.35);
+      border:1px solid rgba(255,255,255,0.10);
+      padding:8px 12px; border-radius:999px;
+      pointer-events:none;
+      opacity:0.0;
+      transition:opacity 0.25s ease;
+      white-space:nowrap;
+    }
+
+    #msg-overlay{
+      position:absolute; width:100%;
+      top:44%;
+      text-align:center;
+      font-size:48px;
+      font-weight:900;
+      opacity:0;
+      transform: translateY(0);
+      transition: opacity 0.22s ease, transform 0.22s ease;
+      pointer-events:none;
+      text-shadow: 0 10px 30px rgba(0,0,0,0.45);
+    }
+
+    .menu{
+      position:absolute; top:50%; left:50%;
+      transform:translate(-50%, -50%);
+      text-align:center;
+      pointer-events:auto;
+      background:var(--panel2);
+      padding:34px 28px;
+      border:2px solid rgba(0,242,255,0.55);
+      border-radius:16px;
+      z-index:10;
+      width:min(520px, calc(100vw - 28px));
+      box-shadow: 0 30px 90px rgba(0,0,0,0.55);
+    }
+    .hidden{ display:none !important; }
+    .btnrow{ display:flex; gap:10px; justify-content:center; flex-wrap:wrap; margin-top:18px; }
+    .btn{
+      background:var(--primary); color:#000; border:none;
+      padding:13px 18px; font-size:16px; font-weight:900;
+      cursor:pointer; border-radius:10px; min-width: 180px;
+    }
+    .btn.secondary{
+      background:rgba(255,255,255,0.12);
+      color:#fff;
+      border:1px solid rgba(255,255,255,0.15);
+      min-width: 180px;
+    }
+
+    #hud-buttons{
+      position:absolute;
+      left:16px;
+      bottom:16px;
+      display:flex;
+      gap:10px;
+      pointer-events:auto;
+    }
+    .chip{
+      background:rgba(255,255,255,0.10);
+      border:1px solid rgba(255,255,255,0.12);
+      backdrop-filter: blur(10px);
+      color:#fff;
+      padding:10px 12px;
+      border-radius:12px;
+      font-weight:800;
+      font-size:13px;
+      cursor:pointer;
+    }
+
+    #pause-badge{
+      position:absolute; left:50%; top:56%;
+      transform:translate(-50%, -50%);
+      font-size:18px;
+      font-weight:900;
+      letter-spacing:2px;
+      color:rgba(255,255,255,0.85);
+      opacity:0;
+      transition:opacity 0.2s ease;
+      pointer-events:none;
+    }
+
+    @media (max-width: 520px){
+      #msg-overlay{ font-size:40px; }
+      .btn{ min-width: 160px; }
+      .score-panel{ min-width: 150px; }
+      #hint{ font-size:11px; }
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game"></canvas>
+
+  <div id="ui">
+    <div class="altitude-panel">ALTITUDE: <span id="floor-count">0</span>F</div>
+    <div id="hint">Tap / Click / Space to drop • P to pause • R to restart</div>
+
+    <div class="score-panel">
+      <div id="score-label">CURRENT SCORE</div>
+      <div id="score-big">0</div>
+      <div id="substats">
+        BEST: <span id="best-score">0</span><br/>
+        COMBO: <span id="combo">0</span><br/>
+        ALIGN: <span id="align">0</span>%
+      </div>
+    </div>
+
+    <div id="msg-overlay">PERFECT!</div>
+    <div id="pause-badge">PAUSED</div>
+
+    <div id="hud-buttons">
+      <button class="chip" id="btn-pause" title="Pause (P)">PAUSE</button>
+      <button class="chip" id="btn-restart" title="Restart (R)">RESTART</button>
+      <button class="chip" id="btn-sound" title="Sound on/off">SOUND: ON</button>
+    </div>
+
+    <div id="main-menu" class="menu">
+      <h1 id="menu-title" style="color:var(--primary); margin:0; letter-spacing:1px;">SKYLINE STACKER</h1>
+      <p id="menu-sub" style="color:#b3b3b3; margin:10px 0 0 0;">Time the swing, master the drop.</p>
+      <p style="color:#7f8892; margin:10px 0 0 0; font-size:13px; line-height:1.4;">
+        Controls: Tap / Click / Space to drop • P to pause • R to restart
+      </p>
+      <div class="btnrow">
+        <button class="btn" id="btn-start">START</button>
+        <button class="btn secondary" id="btn-continue">CONTINUE</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* ------------------------- TUNING ------------------------- */
+const CRANE_ANCHOR_SCREEN_Y = 52;
+const CRANE_BLOCK_SCREEN_Y  = 170;  // smaller => higher => more gap
+const TOWER_TOP_RATIO       = 0.66;
+
+const ROPE_DETACH_FADE_TIME = 0.14;
+
+const SWING_BASE_OMEGA = 1.7;
+const SWING_OMEGA_GAIN = 0.035;
+/* ---------------------------------------------------------- */
+
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d', { alpha: false });
+
+const elFloor = document.getElementById('floor-count');
+const elScore = document.getElementById('score-big');
+const elBest  = document.getElementById('best-score');
+const elCombo = document.getElementById('combo');
+const elAlign = document.getElementById('align');
+const elMenu  = document.getElementById('main-menu');
+const elMenuTitle = document.getElementById('menu-title');
+const elMenuSub   = document.getElementById('menu-sub');
+const elMsg   = document.getElementById('msg-overlay');
+const elHint  = document.getElementById('hint');
+const elPauseBadge = document.getElementById('pause-badge');
+
+const btnStart = document.getElementById('btn-start');
+const btnContinue = document.getElementById('btn-continue');
+const btnPause = document.getElementById('btn-pause');
+const btnRestart = document.getElementById('btn-restart');
+const btnSound = document.getElementById('btn-sound');
+
+const BLOCK_H = 40;
+const BASE_W = 190;
+const MIN_OVERLAP = 6;
+
+const DROP_G   = 2400;
+const DEBRIS_G = 2600;
+
+const CAMERA_SMOOTH = 10;
+const SHAKE_DECAY = 12;
+
+function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+function lerp(a, b, t){ return a + (b - a) * t; }
+function rand(a,b){ return a + Math.random()*(b-a); }
+
+let cssW = 0, cssH = 0;
+let skyline = [];
+let stars = [];
+
+function buildParallax(){
+  skyline = [];
+  stars = [];
+
+  const n = Math.max(12, Math.floor(cssW / 120));
+  let x = -140;
+  for (let i=0;i<n+6;i++){
+    const w = rand(80, 160);
+    const h = rand(120, 360);
+    skyline.push({ x, w, h, a: rand(0.05, 0.11) });
+    x += rand(90, 165);
+  }
+
+  const sCount = Math.floor((cssW * cssH) / 52000);
+  for (let i=0;i<sCount;i++){
+    stars.push({
+      x: Math.random() * cssW,
+      y: Math.random() * cssH,
+      r: rand(0.6, 1.6),
+      a: rand(0.08, 0.22)
+    });
+  }
+}
+
+function resize(){
+  const oldW = cssW || window.innerWidth;
+  const oldCenter = oldW / 2;
+
+  cssW = window.innerWidth;
+  cssH = window.innerHeight;
+
+  const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+  canvas.width = Math.floor(cssW * dpr);
+  canvas.height = Math.floor(cssH * dpr);
+  canvas.style.width = cssW + 'px';
+  canvas.style.height = cssH + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const newCenter = cssW / 2;
+  const dx = newCenter - oldCenter;
+
+  if (tower.length) for (const b of tower) b.x += dx;
+  if (current) current.x += dx;
+  for (const d of debris) d.x += dx;
+  for (const p of particles) p.x += dx;
+
+  buildParallax();
+
+  // important: if block is swinging, re-sync instantly after resize
+  if (state === 'PLAY' && current && !current.falling){
+    syncSwingPose(current);
+  }
+}
+
+let audioCtx = null;
+let soundOn = true;
+function tone(freq, dur, type='sine', gain=0.08) {
+  if (!soundOn) return;
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  const o = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  o.type = type;
+  o.frequency.value = freq;
+  g.gain.value = gain;
+  g.gain.exponentialRampToValueAtTime(0.00001, audioCtx.currentTime + dur);
+  o.connect(g); g.connect(audioCtx.destination);
+  o.start(); o.stop(audioCtx.currentTime + dur);
+}
+
+function setHintVisible(on){ elHint.style.opacity = on ? '1' : '0'; }
+function notify(text, color){
+  elMsg.textContent = text;
+  elMsg.style.color = color;
+  elMsg.style.opacity = '1';
+  elMsg.style.transform = 'translateY(-8px)';
+  setTimeout(() => {
+    elMsg.style.opacity = '0';
+    elMsg.style.transform = 'translateY(0)';
+  }, 520);
+}
+
+function updateUI(alignPct=0){
+  elFloor.textContent = floor;
+  elScore.textContent = score;
+  elCombo.textContent = combo;
+  elAlign.textContent = Math.round(alignPct);
+
+  if (score > best){
+    best = score;
+    localStorage.setItem('stacker_best', String(best));
+  }
+  elBest.textContent = best;
+}
+
+class Block {
+  constructor(w, h, color){
+    this.w = w; this.h = h; this.color = color;
+    this.x = 0; this.y = 0;
+    this.vy = 0;
+    this.falling = false;
+    this.phase = 0;
+    this.omega = SWING_BASE_OMEGA;
+  }
+}
+
+function spawnParticles(x, y, color, count=10){
+  for (let i=0;i<count;i++){
+    particles.push({
+      x, y, vx: rand(-220, 220), vy: rand(-520, -120),
+      life: rand(0.25, 0.55), t: 0, r: rand(1.2, 2.6),
+      color
+    });
+  }
+}
+
+function makeDebris(x, y, w, h, color, dir){
+  debris.push({
+    x, y, w, h, color,
+    vx: dir * rand(140, 260),
+    vy: rand(-260, -140),
+    rot: rand(-0.35, 0.35),
+    vr: dir * rand(1.2, 2.1)
+  });
+}
+
+function desiredTowerTopY(){
+  return clamp(cssH * TOWER_TOP_RATIO, cssH * 0.55, cssH * 0.78);
+}
+
+/* --------- IMPORTANT FIX: instant swing position --------- */
+function swingRange(){
+  return Math.min(cssW * 0.38, 360);
+}
+function syncSwingPose(b){
+  const anchorX = cssW / 2;
+  const range = swingRange();
+  b.x = anchorX + Math.sin(b.phase) * range - b.w/2;
+  b.y = -cameraY + CRANE_BLOCK_SCREEN_Y;
+}
+/* -------------------------------------------------------- */
+
+let state = 'MENU';
+let score = 0, floor = 0, combo = 0;
+let best = parseInt(localStorage.getItem('stacker_best') || '0', 10);
+
+let cameraY = 0;
+let targetCameraY = 0;
+
+let tower = [];
+let debris = [];
+let particles = [];
+let current = null;
+
+let lastTime = 0;
+let shake = 0;
+
+let ropeDetachActive = false;
+let ropeDetachT = 0;
+let ropeDetachX = 0;
+let ropeDetachY = 0;
+
+function showMenu(show, allowContinue=false){
+  elMenu.classList.toggle('hidden', !show);
+  btnContinue.style.display = allowContinue ? 'inline-block' : 'none';
+}
+
+function startNewGame(){
+  state = 'PLAY';
+  score = 0; floor = 0; combo = 0;
+  cameraY = 0; targetCameraY = 0;
+
+  tower = []; debris = []; particles = [];
+  current = null;
+
+  shake = 0;
+  ropeDetachActive = false;
+
+  const baseX = cssW/2 - BASE_W/2;
+  const baseY = cssH - 90;
+  tower.push({ x: baseX, y: baseY, w: BASE_W, h: BLOCK_H, color: '#222' });
+
+  spawnNextBlock();
+  updateUI(0);
+  showMenu(false);
+  setHintVisible(true);
+  setTimeout(() => setHintVisible(false), 2500);
+}
+
+function pauseToggle(){
+  if (state === 'PLAY'){
+    state = 'PAUSE';
+    elPauseBadge.style.opacity = '1';
+    elMenuTitle.textContent = 'PAUSED';
+    elMenuSub.textContent = 'Press CONTINUE or P to resume.';
+    showMenu(true, true);
+  } else if (state === 'PAUSE'){
+    state = 'PLAY';
+    elPauseBadge.style.opacity = '0';
+    showMenu(false);
+
+    // re-sync to avoid any mid-pause rope jitter
+    if (current && !current.falling) syncSwingPose(current);
+  }
+}
+
+function gameOver(){
+  state = 'OVER';
+  tone(110, 0.55, 'triangle', 0.10);
+  elPauseBadge.style.opacity = '0';
+  elMenuTitle.textContent = 'GAME OVER';
+  elMenuSub.textContent = `Altitude: ${floor} floors • Score: ${score}`;
+  showMenu(true, false);
+}
+
+function spawnNextBlock(){
+  const prev = tower[tower.length - 1];
+  const hue = (floor * 18) % 360;
+  const color = `hsl(${hue}, 78%, 60%)`;
+
+  const b = new Block(prev.w, BLOCK_H, color);
+  b.omega = SWING_BASE_OMEGA + floor * SWING_OMEGA_GAIN;
+  b.phase = rand(0, Math.PI * 2);
+  current = b;
+
+  // FIX: no (0,0) frame -> place instantly
+  syncSwingPose(current);
+}
+
+function drop(){
+  if (state !== 'PLAY') return;
+  if (!current || current.falling) return;
+
+  current.falling = true;
+  current.vy = 0;
+
+  ropeDetachActive = true;
+  ropeDetachT = 0;
+  ropeDetachX = current.x + current.w/2;
+  ropeDetachY = current.y + 4;
+
+  tone(160, 0.08, 'square', 0.06);
+}
+
+function checkLanding(prev){
+  current.falling = false;
+  current.y = prev.y - current.h;
+
+  const pL = prev.x, pR = prev.x + prev.w;
+  const cL = current.x, cR = current.x + current.w;
+
+  const overlapL = Math.max(pL, cL);
+  const overlapR = Math.min(pR, cR);
+  const overlapW = overlapR - overlapL;
+
+  if (overlapW < MIN_OVERLAP || overlapW <= 0){
+    shake = 14;
+    spawnParticles(current.x + current.w/2, current.y + current.h/2, current.color, 18);
+    gameOver();
+    return;
+  }
+
+  const delta = current.x - prev.x;
+  const perfectThreshold = Math.max(6, prev.w * 0.03);
+
+  let alignPct = clamp((overlapW / prev.w) * 100, 0, 100);
+
+  if (Math.abs(delta) <= perfectThreshold){
+    combo = Math.min(combo + 1, 20);
+    current.x = prev.x;
+    current.w = prev.w;
+
+    score += 5 + Math.floor(combo * 1.5);
+    notify(combo >= 3 ? `PERFECT x${combo}` : 'PERFECT!', '#00f2ff');
+    tone(420 + combo * 35, 0.13, 'sine', 0.09);
+
+    shake = Math.min(18, 6 + combo * 1.2);
+    spawnParticles(current.x + current.w/2, current.y + current.h, current.color, 14);
+
+    updateUI(100);
+  } else {
+    const lostW = current.w - overlapW;
+    const offLeft = cL < pL;
+
+    if (lostW > 1){
+      const debX = offLeft ? cL : overlapR;
+      makeDebris(debX, current.y, lostW, current.h, current.color, offLeft ? -1 : 1);
+      spawnParticles(debX + lostW/2, current.y + current.h, current.color, 10);
+    }
+
+    current.x = overlapL;
+    current.w = overlapW;
+    combo = 0;
+
+    score += 1 + Math.floor((alignPct / 100) * 4);
+    tone(220, 0.10, 'triangle', 0.07);
+    updateUI(alignPct);
+  }
+
+  tower.push({ x: current.x, y: current.y, w: current.w, h: current.h, color: current.color });
+  floor++;
+
+  const topY = tower[tower.length - 1].y;
+  const computed = Math.max(0, desiredTowerTopY() - topY);
+  targetCameraY = Math.max(targetCameraY, computed);
+
+  spawnNextBlock();
+}
+
+/* ---------- Background ---------- */
+function drawBackground(){
+  const grd = ctx.createLinearGradient(0, 0, 0, cssH);
+  grd.addColorStop(0, "#050508");
+  grd.addColorStop(1, "#1a1a2e");
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, cssW, cssH);
+
+  // stars
+  const starOff = (cameraY * 0.04) % cssH;
+  for (const s of stars){
+    const y = (s.y + starOff) % cssH;
+    ctx.globalAlpha = s.a;
+    ctx.fillStyle = "white";
+    ctx.beginPath(); ctx.arc(s.x, y, s.r, 0, Math.PI*2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  // skyline clip to bottom zone => no weird top rectangles
+  ctx.save();
+  const clipY = cssH * 0.42;
+  ctx.beginPath();
+  ctx.rect(0, clipY, cssW, cssH - clipY);
+  ctx.clip();
+
+  const wrap = cssH + 220;
+  const skyOff = (cameraY * 0.10) % wrap;
+
+  for (const b of skyline){
+    ctx.globalAlpha = b.a;
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
+
+    let y = (cssH - b.h) + skyOff;
+    while (y > cssH) y -= wrap;
+
+    ctx.fillRect(b.x, y, b.w, b.h);
+
+    // draw second copy only if needed to fill bottom (not top)
+    if (y + b.h < clipY){
+      ctx.fillRect(b.x, y + wrap, b.w, b.h);
+    }
+  }
+
+  ctx.restore();
+  ctx.globalAlpha = 1;
+
+  const v = ctx.createRadialGradient(cssW/2, cssH/2, cssH*0.2, cssW/2, cssH/2, cssH*0.85);
+  v.addColorStop(0, "rgba(0,0,0,0)");
+  v.addColorStop(1, "rgba(0,0,0,0.55)");
+  ctx.fillStyle = v;
+  ctx.fillRect(0, 0, cssW, cssH);
+}
+
+/* ---------- Update + Draw ---------- */
+function update(realDt){
+  if (state !== 'PLAY') return;
+
+  const camT = 1 - Math.exp(-CAMERA_SMOOTH * realDt);
+  cameraY = Math.max(cameraY, lerp(cameraY, targetCameraY, camT));
+  if (shake > 0) shake = Math.max(0, shake - SHAKE_DECAY * realDt);
+
+  if (ropeDetachActive){
+    ropeDetachT += realDt;
+    if (ropeDetachT >= ROPE_DETACH_FADE_TIME) ropeDetachActive = false;
+  }
+
+  if (current && !current.falling){
+    current.phase += current.omega * realDt;
+    syncSwingPose(current);
+  }
+
+  if (current && current.falling){
+    current.vy += DROP_G * realDt;
+    current.y += current.vy * realDt;
+
+    const prev = tower[tower.length - 1];
+    if (current.y + current.h >= prev.y){
+      checkLanding(prev);
+    }
+  }
+
+  for (let i = debris.length - 1; i >= 0; i--){
+    const d = debris[i];
+    d.vy += DEBRIS_G * realDt;
+    d.x += d.vx * realDt;
+    d.y += d.vy * realDt;
+    d.rot += d.vr * realDt;
+    if (d.y > (-cameraY + cssH + 900)) debris.splice(i, 1);
+  }
+
+  for (let i = particles.length - 1; i >= 0; i--){
+    const p = particles[i];
+    p.t += realDt;
+    p.vy += DEBRIS_G * 0.85 * realDt;
+    p.x += p.vx * realDt;
+    p.y += p.vy * realDt;
+    if (p.t >= p.life) particles.splice(i, 1);
+  }
+}
+
+function draw(){
+  ctx.clearRect(0, 0, cssW, cssH);
+  drawBackground();
+
+  const sx = (Math.random() - 0.5) * shake;
+  const sy = (Math.random() - 0.5) * shake;
+
+  ctx.save();
+  ctx.translate(sx, cameraY + sy);
+
+  for (const b of tower){
+    ctx.fillStyle = b.color;
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.fillRect(b.x + 6, b.y + 6, Math.max(0, b.w - 12), b.h * 0.45);
+  }
+
+  for (const d of debris){
+    ctx.save();
+    ctx.translate(d.x + d.w/2, d.y + d.h/2);
+    ctx.rotate(d.rot);
+    ctx.fillStyle = d.color;
+    ctx.fillRect(-d.w/2, -d.h/2, d.w, d.h);
+    ctx.restore();
+  }
+
+  for (const p of particles){
+    const a = 1 - (p.t / p.life);
+    ctx.globalAlpha = Math.max(0, a);
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+
+  if (state === 'PLAY' && current && !current.falling){
+    const prev = tower[tower.length - 1];
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(prev.x, prev.y - current.h, prev.w, current.h);
+  }
+
+  if (state === 'PLAY' && current){
+    const anchorX = cssW / 2;
+    const anchorY = -cameraY + CRANE_ANCHOR_SCREEN_Y;
+
+    if (!current.falling){
+      ctx.strokeStyle = "rgba(0,242,255,0.35)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(anchorX, anchorY);
+      ctx.lineTo(current.x + current.w/2, current.y + 4);
+      ctx.stroke();
+
+      ctx.fillStyle = "rgba(0,242,255,0.55)";
+      ctx.beginPath();
+      ctx.arc(anchorX, anchorY, 4, 0, Math.PI*2);
+      ctx.fill();
+    } else if (ropeDetachActive){
+      const fade = 1 - clamp(ropeDetachT / ROPE_DETACH_FADE_TIME, 0, 1);
+      ctx.globalAlpha = 0.35 * fade;
+      ctx.strokeStyle = "rgba(0,242,255,1)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(anchorX, anchorY);
+      ctx.lineTo(ropeDetachX, ropeDetachY);
+      ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+
+    ctx.save();
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = current.color;
+    ctx.fillStyle = current.color;
+    ctx.fillRect(current.x, current.y, current.w, current.h);
+    ctx.fillStyle = 'rgba(255,255,255,0.20)';
+    ctx.fillRect(current.x + 6, current.y + 6, Math.max(0, current.w - 12), current.h * 0.45);
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+/* ---------- Loop + Controls ---------- */
+function loop(ts){
+  if (!lastTime) lastTime = ts;
+  let realDt = (ts - lastTime) / 1000;
+  lastTime = ts;
+  realDt = clamp(realDt, 0, 1/30);
+
+  update(realDt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+function onKeyDown(e){
+  if (e.repeat) return;
+
+  if (e.code === 'Space'){
+    e.preventDefault();
+    if (state === 'MENU' || state === 'OVER') startNewGame();
+    else if (state === 'PLAY') drop();
+    else if (state === 'PAUSE') pauseToggle();
+  }
+
+  if (e.code === 'KeyP' || e.code === 'Escape'){
+    e.preventDefault();
+    if (state === 'PLAY' || state === 'PAUSE') pauseToggle();
+  }
+
+  if (e.code === 'KeyR'){
+    e.preventDefault();
+    startNewGame();
+  }
+}
+
+function onPointerDown(e){
+  if (e.target && e.target.closest && e.target.closest('#hud-buttons')) return;
+  if (e.target && e.target.closest && e.target.closest('.menu')) return;
+
+  if (state === 'MENU' || state === 'OVER'){ startNewGame(); return; }
+  if (state === 'PAUSE'){ pauseToggle(); return; }
+  drop();
+}
+
+btnStart.addEventListener('click', () => startNewGame());
+btnContinue.addEventListener('click', () => pauseToggle());
+btnPause.addEventListener('click', () => pauseToggle());
+btnRestart.addEventListener('click', () => startNewGame());
+btnSound.addEventListener('click', () => {
+  soundOn = !soundOn;
+  btnSound.textContent = soundOn ? 'SOUND: ON' : 'SOUND: OFF';
+  if (soundOn) tone(380, 0.08, 'sine', 0.06);
+});
+
+window.addEventListener('resize', resize);
+window.addEventListener('keydown', onKeyDown);
+canvas.addEventListener('pointerdown', onPointerDown, { passive: false });
+
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden && state === 'PLAY') pauseToggle();
+});
+
+/* ---------- Init ---------- */
+function init(){
+  resize();
+  elBest.textContent = best;
+  showMenu(true, false);
+  setHintVisible(true);
+  setTimeout(() => setHintVisible(false), 2500);
+  requestAnimationFrame(loop);
+}
+init();
+</script>
+</body>
+</html>

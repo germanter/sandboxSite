@@ -76,7 +76,13 @@ const games = [
     title: "2D Drag Blocks",
     link: "/games//dragBlocks2d.html",
     imgLink: "https://i.postimg.cc/Dyw2Mkjh/drag-ABlock.webp"
+  },
+  {
+    title: "Brick By Brick 2D",
+    link: "/games//brickBybrick2d.html",
+    imgLink: "https://i.postimg.cc/dVvKWFgF/brick-By-Brick.webp"
   }
+
 ];
 //color base control here
 const colorPalette = [
