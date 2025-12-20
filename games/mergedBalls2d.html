@@ -1,0 +1,1104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="robots" content="noindex,nofollow">
+  <title>Merge Physics Factory</title>
+  <style>
+    :root {
+      --bg: #1a1a2e;
+      --panel: rgba(22, 22, 37, 0.9);
+      --accent: #4ecca3;
+      --text: #eeeeee;
+      --danger: #e94560;
+    }
+    * { box-sizing: border-box; touch-action: none; }
+    body {
+      margin: 0; padding: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      overflow: hidden;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      height: 100dvh;
+    }
+    #game-container {
+      position: relative;
+      width: 100%;
+      max-width: 500px;
+      height: 100%;
+      max-height: 800px;
+      background: #0f3460;
+      box-shadow: 0 0 50px rgba(0,0,0,0.5);
+      overflow: hidden;
+    }
+    canvas { display:block; width:100%; height:100%; }
+
+    #hud {
+      position:absolute; top:0; left:0; width:100%;
+      padding:15px;
+      padding-top: calc(15px + env(safe-area-inset-top));
+      padding-left: calc(15px + env(safe-area-inset-left));
+      padding-right: calc(15px + env(safe-area-inset-right));
+      pointer-events:none;
+      display:flex; justify-content:space-between;
+      z-index:10;
+      gap: 10px;
+    }
+    .stats-group { display:flex; flex-direction:column; gap:5px; min-width:140px; }
+    .stat-label { font-size:12px; text-transform:uppercase; opacity:0.8; }
+    .stat-value { font-size:22px; font-weight:bold; color:var(--accent); }
+    #mode-display { font-size:10px; opacity:0.75; line-height:1.25; text-align:right; white-space:pre-line; }
+
+    #pause-fab {
+      position:absolute;
+      top: calc(14px + env(safe-area-inset-top));
+      left:50%;
+      transform:translateX(-50%);
+      z-index:20;
+      pointer-events:auto;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.15);
+      color: var(--text);
+      padding: 10px 14px;
+      font-size: 13px;
+      font-weight: 800;
+      border-radius: 12px;
+      cursor: pointer;
+      user-select: none;
+      backdrop-filter: blur(6px);
+    }
+    #pause-fab:active { transform: translateX(-50%) scale(0.97); }
+
+    #combo-ui{
+      position:absolute; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      font-size:48px; font-weight:900;
+      color:var(--accent);
+      opacity:0; pointer-events:none;
+      transition:opacity 0.2s;
+      z-index:25;
+    }
+
+    .overlay{
+      position:absolute; top:0; left:0; width:100%; height:100%;
+      background: var(--panel);
+      display:flex; flex-direction:column;
+      justify-content:center; align-items:center;
+      z-index:100;
+      padding:40px;
+      text-align:center;
+    }
+    .hidden{ display:none !important; }
+    h1{ margin:0 0 18px; color:var(--accent); font-size:2rem; }
+    button.menu-btn{
+      background: var(--accent);
+      border:none;
+      color: var(--bg);
+      padding: 12px 24px;
+      font-size: 18px;
+      font-weight: bold;
+      border-radius: 8px;
+      cursor:pointer;
+      margin: 8px;
+      width: 240px;
+      transition: transform 0.1s;
+    }
+    button.menu-btn:active{ transform: scale(0.95); }
+    .settings-row{ display:flex; justify-content:space-between; width:100%; margin:8px 0; align-items:center; gap:12px; }
+    input[type=range]{ width:140px; }
+
+    #hint-overlay{
+      position:absolute;
+      left:50%; transform:translateX(-50%);
+      bottom: calc(20px + env(safe-area-inset-bottom));
+      width:80%;
+      background: rgba(0,0,0,0.7);
+      padding:15px; border-radius:10px;
+      font-size:14px;
+      pointer-events:auto;
+      z-index:50;
+    }
+  </style>
+</head>
+<body>
+<div id="game-container">
+  <div id="hud">
+    <div class="stats-group">
+      <span class="stat-label">Score</span>
+      <span id="score-val" class="stat-value">0</span>
+      <span class="stat-label">Best: <span id="high-score-val">0</span></span>
+    </div>
+    <div class="stats-group" style="align-items:flex-end;">
+      <span class="stat-label">Risk Bonus</span>
+      <span id="risk-val" class="stat-value">1.0x</span>
+      <span id="mode-display">Endless</span>
+    </div>
+  </div>
+
+  <button id="pause-fab" onclick="togglePause()">Pause</button>
+
+  <div id="combo-ui">COMBO!</div>
+  <canvas id="canvas"></canvas>
+
+  <div id="menu-main" class="overlay">
+    <h1>Bounce Merge</h1>
+    <button class="menu-btn" onclick="startGame('endless')">Endless Mode</button>
+    <button class="menu-btn" onclick="startGame('level')">Level Mode (Goal)</button>
+    <button class="menu-btn" onclick="startGame('challenge', 25)">Challenge (25 Drops)</button>
+    <button class="menu-btn" onclick="startGame('challenge', 50)">Challenge (50 Drops)</button>
+    <button class="menu-btn" onclick="startGame('challenge', 100)">Challenge (100 Drops)</button>
+    <button class="menu-btn" onclick="toggleSettings()">Settings</button>
+  </div>
+
+  <div id="menu-settings" class="overlay hidden">
+    <h1>Settings</h1>
+    <div class="settings-row"><span>Gravity</span><input type="range" id="set-gravity" min="0.1" max="1.5" step="0.1" value="0.6"></div>
+    <div class="settings-row"><span>Bounce</span><input type="range" id="set-bounce" min="0.1" max="0.9" step="0.1" value="0.4"></div>
+    <div class="settings-row"><span>Pegs</span><input type="checkbox" id="set-pegs"></div>
+    <div class="settings-row"><span>Sound</span><input type="checkbox" id="set-sound" checked></div>
+    <button class="menu-btn" onclick="toggleSettings()">Back</button>
+  </div>
+
+  <div id="menu-pause" class="overlay hidden">
+    <h1>Paused</h1>
+    <button class="menu-btn" onclick="togglePause()">Resume</button>
+    <button class="menu-btn" onclick="resetGame()">Restart</button>
+    <button class="menu-btn" onclick="showMain()">Main Menu</button>
+  </div>
+
+  <div id="menu-over" class="overlay hidden">
+    <h1 id="over-title">Game Over</h1>
+    <p id="over-stats"></p>
+    <button class="menu-btn" onclick="resetGame()">Try Again</button>
+    <button class="menu-btn" onclick="showMain()">Main Menu</button>
+  </div>
+
+  <div id="hint-overlay">
+    Drag to aim. Release to drop. Match values to merge. Avoid the red line!
+    <button onclick="this.parentElement.remove()" style="width:auto; padding:5px 10px; margin:8px 0 0; font-size:12px;">Got it!</button>
+  </div>
+</div>
+
+<script>
+const COLORS = {
+  2:'#3498db', 4:'#2ecc71', 8:'#e67e22', 16:'#e74c3c',
+  32:'#9b59b6', 64:'#1abc9c', 128:'#f1c40f', 256:'#d35400',
+  512:'#c0392b', 1024:'#8e44ad', 2048:'#2c3e50', 4096:'#f39c12'
+};
+
+const CFG = {
+  SUBSTEPS: 4,
+  SOLVER_ITERS: 4,            // <<< overlap fix (iterative solver)
+  DANGER_TIME: 2000,
+
+  DANGER_GRAV_MIN: 0.12,
+  DANGER_SPEED_MAX: 260,
+  DANGER_VY_UP_LIMIT: -120,
+
+  DROP_GATE_MARGIN: 35,
+  DROP_GATE_TIMEOUT_MS: 900,
+  DROP_GATE_EMERGENCY_MS: 450,
+
+  MERGE_DWELL: 5,
+  CONTACT_EPS: 0.9,
+  COMBO_WINDOW: 1500,
+  BASE_RADIUS: 25,
+
+  TRAJ_DT: 1/60,
+  TRAJ_SECONDS: 2.4,
+  TRAJ_SAMPLE_EVERY: 6,
+
+  END_RESOLVE_MAX_MS: 3200,
+  END_MOVING_THRESH: 7,
+
+  // squash thresholds (fix "oval stuck" bug)
+  SQUASH_WALL_SPEED: 80,
+  SQUASH_FLOOR_SPEED: 140,
+  SQUASH_BALL_SPEED: 140
+};
+
+class Game {
+  constructor(){
+    this.canvas = document.getElementById('canvas');
+    this.ctx = this.canvas.getContext('2d');
+
+    this.balls = [];
+    this.particles = [];
+    this.pegs = [];
+
+    this.score = 0;
+    this.highScore = localStorage.getItem('mergeHighscore') || 0;
+
+    this.combo = 1;
+    this.comboTimer = 0;
+    this.riskBonus = 1;
+
+    this.state = 'MENU';
+    this.mode = 'endless';
+    this.nextValue = 2;
+
+    this.isPaused = false;
+    this.dangerTimer = 0;
+    this.lastTime = 0;
+    this.dropCooldown = 0;
+
+    this.targetValue = 512;
+    this.remainingDrops = Infinity;
+    this.challengeDropsChosen = 25;
+
+    this.pendingEndCheck = false;
+    this.endResolveStartMs = 0;
+
+    this.maxValue = 16;
+
+    this.hudBottom = 90;
+    this.dangerY = 170;
+
+    this.aimX = 250;
+
+    this.dragging = false;
+    this.activePointerId = null;
+
+    this.contactMap = new Map();
+    this.nextBallId = 1;
+
+    this.lastDropBallId = null;
+    this.lastDropMs = 0;
+
+    this.audioCtx = null;
+
+    this.init();
+  }
+
+  init(){
+    window.addEventListener('resize', () => this.resize());
+    this.resize();
+
+    this.canvas.addEventListener('pointerdown', (e) => this.onPointerDown(e));
+    this.canvas.addEventListener('pointermove', (e) => this.onPointerMove(e));
+    this.canvas.addEventListener('pointerup', (e) => this.onPointerUp(e));
+    this.canvas.addEventListener('pointercancel', (e) => this.onPointerUp(e));
+
+    window.addEventListener('keydown', (e) => {
+      if (e.key.toLowerCase() === 'p') togglePause();
+      if (e.key === 'Escape' && this.state === 'PLAYING') togglePause();
+    });
+
+    document.getElementById('high-score-val').innerText = this.highScore;
+    requestAnimationFrame((t) => this.loop(t));
+  }
+
+  resize(){
+    const container = document.getElementById('game-container');
+    this.canvas.width = container.clientWidth;
+    this.canvas.height = container.clientHeight;
+    this.width = this.canvas.width;
+    this.height = this.canvas.height;
+
+    this.aimX = Math.max(40, Math.min(this.width - 40, this.aimX));
+
+    const hud = document.getElementById('hud');
+    const contRect = container.getBoundingClientRect();
+    const hudRect = hud.getBoundingClientRect();
+    this.hudBottom = Math.max(80, (hudRect.bottom - contRect.top));
+    this.dangerY = Math.max(140, this.hudBottom + 140);
+    this.dangerY = Math.min(this.dangerY, Math.floor(this.height * 0.38));
+  }
+
+  initAudio(){
+    if (!this.audioCtx) this.audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+
+  playSound(freq, type='sine', duration=0.1){
+    if (!document.getElementById('set-sound').checked) return;
+    this.initAudio();
+    const osc = this.audioCtx.createOscillator();
+    const gain = this.audioCtx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(freq, this.audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.1, this.audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.0001, this.audioCtx.currentTime + duration);
+    osc.connect(gain);
+    gain.connect(this.audioCtx.destination);
+    osc.start();
+    osc.stop(this.audioCtx.currentTime + duration);
+  }
+
+  startGame(mode, challengeDrops=25){
+    this.mode = mode;
+    this.challengeDropsChosen = challengeDrops;
+
+    this.balls = [];
+    this.particles = [];
+    this.pegs = [];
+    this.contactMap.clear();
+
+    this.score = 0;
+    this.combo = 1;
+    this.comboTimer = 0;
+    this.dangerTimer = 0;
+
+    this.state = 'PLAYING';
+    this.isPaused = false;
+    document.getElementById('menu-pause').classList.add('hidden');
+    document.getElementById('pause-fab').innerText = 'Pause';
+
+    this.dropCooldown = 0;
+    this.pendingEndCheck = false;
+    this.endResolveStartMs = 0;
+
+    this.maxValue = 16;
+    this.nextValue = this.getRandomStartValue();
+    this.aimX = this.width * 0.5;
+
+    this.dragging = false;
+    this.activePointerId = null;
+
+    this.lastDropBallId = null;
+    this.lastDropMs = 0;
+
+    if (this.mode === 'level'){
+      this.targetValue = 512;
+      this.remainingDrops = 60;
+    } else if (this.mode === 'challenge'){
+      this.remainingDrops = challengeDrops;
+      this.targetValue = (challengeDrops <= 25) ? 128 : (challengeDrops <= 50) ? 256 : 512;
+    } else {
+      this.remainingDrops = Infinity;
+      this.targetValue = 0;
+    }
+
+    if (document.getElementById('set-pegs').checked) this.generatePegs();
+    else this.pegs = [];
+
+    document.getElementById('menu-main').classList.add('hidden');
+    document.getElementById('menu-over').classList.add('hidden');
+    document.getElementById('menu-settings').classList.add('hidden');
+
+    this.updateModeUI();
+    this.updateUI();
+  }
+
+  updateModeUI(){
+    const el = document.getElementById('mode-display');
+    if (this.mode === 'endless') el.innerText = `Endless`;
+    else if (this.mode === 'level') el.innerText = `Level\nGoal: ${this.targetValue}\nDrops: ${this.remainingDrops}`;
+    else el.innerText = `Challenge\nGoal: ${this.targetValue}\nDrops: ${this.remainingDrops}`;
+  }
+
+  generatePegs(){
+    this.pegs = [];
+    const rows = 4;
+    for (let r=0; r<rows; r++){
+      const count = (r % 2 === 0) ? 4 : 3;
+      for (let i=0; i<count; i++){
+        this.pegs.push({
+          x: (this.width/(count+1))*(i+1),
+          y: 200 + (r*80),
+          r: 8
+        });
+      }
+    }
+  }
+
+  getRandomStartValue(){
+    const pool = [2,2,2,4,4,8,16];
+    if (this.mode === 'endless'){
+      if (this.maxValue >= 128) pool.push(32);
+      if (this.maxValue >= 256) pool.push(64);
+      if (this.maxValue >= 512) pool.push(128);
+      if (this.maxValue >= 1024) pool.push(256);
+    }
+    return pool[Math.floor(Math.random()*pool.length)];
+  }
+
+  isLimitedMode(){ return this.mode === 'level' || this.mode === 'challenge'; }
+
+  clampAimX(x){
+    const r = CFG.BASE_RADIUS + (Math.log2(this.nextValue)*2);
+    return Math.max(r, Math.min(this.width - r, x));
+  }
+
+  canvasXFromEvent(e){
+    const rect = this.canvas.getBoundingClientRect();
+    return e.clientX - rect.left;
+  }
+
+  getBallById(id){ return this.balls.find(b => b.id === id) || null; }
+
+  getHoldYForRadius(r){
+    const top = this.hudBottom + r + 14;
+    const bottom = this.dangerY - r - 18;
+    if (bottom <= top) return Math.max(50, bottom);
+    return (top + bottom) * 0.5;
+  }
+
+  canDropNow(){
+    if (!this.lastDropBallId) return true;
+    const b = this.getBallById(this.lastDropBallId);
+    if (!b) { this.lastDropBallId = null; return true; }
+
+    const now = performance.now();
+    if (this.dangerTimer >= CFG.DROP_GATE_EMERGENCY_MS) return true;
+    if (now - this.lastDropMs >= CFG.DROP_GATE_TIMEOUT_MS) return true;
+
+    const gateY = this.dangerY + CFG.DROP_GATE_MARGIN;
+    return (b.y - b.r) > gateY;
+  }
+
+  onPointerDown(e){
+    if (this.state !== 'PLAYING' || this.isPaused) return;
+    this.dragging = true;
+    this.activePointerId = e.pointerId;
+    this.canvas.setPointerCapture(e.pointerId);
+    this.aimX = this.clampAimX(this.canvasXFromEvent(e));
+  }
+
+  onPointerMove(e){
+    if (this.state !== 'PLAYING') return;
+    if (!this.dragging || this.activePointerId === e.pointerId || e.pointerType === 'mouse'){
+      this.aimX = this.clampAimX(this.canvasXFromEvent(e));
+    }
+  }
+
+  onPointerUp(e){
+    if (this.state !== 'PLAYING') return;
+    if (this.dragging && this.activePointerId === e.pointerId){
+      this.dragging = false;
+      this.activePointerId = null;
+      try { this.canvas.releasePointerCapture(e.pointerId); } catch (_) {}
+
+      if (this.isPaused) return;
+      if (this.dropCooldown > 0) return;
+      if (this.isLimitedMode() && this.remainingDrops <= 0) return;
+
+      if (!this.canDropNow()){
+        this.playSound(130, 'sine', 0.04);
+        return;
+      }
+
+      const r = CFG.BASE_RADIUS + (Math.log2(this.nextValue)*2);
+      const y = this.getHoldYForRadius(r);
+      this.spawnBall(this.aimX, y, this.nextValue);
+
+      if (this.isLimitedMode()){
+        this.remainingDrops--;
+        this.updateModeUI();
+        if (this.remainingDrops <= 0) this.scheduleLimitedEndCheck();
+      }
+
+      this.nextValue = this.getRandomStartValue();
+      this.dropCooldown = 14;
+    }
+  }
+
+  scheduleLimitedEndCheck(){
+    if (this.pendingEndCheck) return;
+    this.pendingEndCheck = true;
+    this.endResolveStartMs = performance.now();
+
+    const check = () => {
+      if (this.state !== 'PLAYING') return;
+
+      const now = performance.now();
+      const elapsed = now - this.endResolveStartMs;
+      const moving = this.balls.some(b => (Math.abs(b.vx)+Math.abs(b.vy)) > CFG.END_MOVING_THRESH);
+
+      if (!moving || elapsed >= CFG.END_RESOLVE_MAX_MS){
+        const msg = (this.mode === 'level') ? "LEVEL FAILED!" : "CHALLENGE FAILED!";
+        this.gameOver(msg);
+        return;
+      }
+      setTimeout(check, 220);
+    };
+
+    setTimeout(check, 400);
+  }
+
+  spawnBall(x, y, value){
+    const r = CFG.BASE_RADIUS + (Math.log2(value)*2);
+    const clampedX = Math.max(r, Math.min(this.width - r, x));
+    const b = new Ball(this.nextBallId++, clampedX, y, r, value);
+    b.vx = 0; b.vy = 0;
+    this.balls.push(b);
+
+    this.lastDropBallId = b.id;
+    this.lastDropMs = performance.now();
+
+    this.playSound(200, 'triangle', 0.05);
+  }
+
+  loop(timestamp){
+    const dt = (timestamp - this.lastTime)/1000;
+    this.lastTime = timestamp;
+
+    if (this.state === 'PLAYING' && !this.isPaused) this.update(Math.min(dt, 0.1));
+    this.draw();
+    requestAnimationFrame((t) => this.loop(t));
+  }
+
+  update(dt){
+    if (this.dropCooldown > 0) this.dropCooldown--;
+
+    if (this.comboTimer > 0) this.comboTimer -= dt*1000;
+    else this.combo = 1;
+
+    const subDt = dt / CFG.SUBSTEPS;
+    for (let s=0; s<CFG.SUBSTEPS; s++) this.physicsStep(subDt);
+
+    const grav = parseFloat(document.getElementById('set-gravity').value);
+
+    let minTop = this.height;
+    let dangerous = false;
+
+    for (const b of this.balls){
+      if (b.spawning) continue;
+      const top = b.y - b.r;
+      if (top < minTop) minTop = top;
+
+      if (top < this.dangerY){
+        const speed = Math.hypot(b.vx, b.vy);
+        if (speed <= CFG.DANGER_SPEED_MAX && b.vy >= CFG.DANGER_VY_UP_LIMIT){
+          dangerous = true;
+        }
+      }
+    }
+
+    if (grav <= CFG.DANGER_GRAV_MIN) dangerous = false;
+
+    if (dangerous){
+      this.dangerTimer += dt*1000;
+      if (this.dangerTimer > CFG.DANGER_TIME) this.gameOver("OVERFLOW!");
+    } else {
+      this.dangerTimer = Math.max(0, this.dangerTimer - dt*600);
+    }
+
+    const riskFactor = Math.max(0, Math.min(1, (this.dangerY - minTop)/this.dangerY));
+    this.riskBonus = 1 + (riskFactor * 0.5);
+
+    for (let i=this.particles.length-1; i>=0; i--){
+      this.particles[i].update(dt);
+      if (this.particles[i].life <= 0) this.particles.splice(i,1);
+    }
+  }
+
+  pairKey(a,b){
+    const id1 = Math.min(a.id,b.id);
+    const id2 = Math.max(a.id,b.id);
+    return `${id1}|${id2}`;
+  }
+
+  purgeContactsFor(ballId){
+    for (const key of this.contactMap.keys()){
+      const [a,b] = key.split('|').map(Number);
+      if (a === ballId || b === ballId) this.contactMap.delete(key);
+    }
+  }
+
+  // === MAIN FIXES ARE HERE ===
+  physicsStep(dt){
+    const grav = parseFloat(document.getElementById('set-gravity').value);
+    const bounce = parseFloat(document.getElementById('set-bounce').value);
+
+    // integrate
+    for (const b of this.balls){
+      b.vy += grav * 1500 * dt;
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.vx *= 0.995;
+    }
+
+    const seenThisStep = new Set();
+    const mergesToDo = [];
+    const scheduled = new Set();
+
+    // iterative constraint solver (removes overlap properly)
+    for (let iter=0; iter<CFG.SOLVER_ITERS; iter++){
+      const applyImpulse = (iter === 0);
+
+      // walls + floor
+      for (const b of this.balls){
+        // left
+        if (b.x < b.r){
+          b.x = b.r;
+          if (applyImpulse){
+            const impact = Math.abs(b.vx);
+            b.vx = Math.abs(b.vx) * bounce;
+            if (impact > CFG.SQUASH_WALL_SPEED) b.squash(0.86, 1.14);
+          }
+        }
+        // right
+        if (b.x > this.width - b.r){
+          b.x = this.width - b.r;
+          if (applyImpulse){
+            const impact = Math.abs(b.vx);
+            b.vx = -Math.abs(b.vx) * bounce;
+            if (impact > CFG.SQUASH_WALL_SPEED) b.squash(0.86, 1.14);
+          }
+        }
+        // floor
+        if (b.y > this.height - b.r){
+          b.y = this.height - b.r;
+          if (applyImpulse){
+            const impact = Math.abs(b.vy);
+            b.vy = -Math.abs(b.vy) * bounce;
+            b.vx *= 0.9;
+            if (Math.abs(b.vy) < 10) b.vy = 0;
+            // squash ONLY if real impact (fix oval-stuck bug)
+            if (impact > CFG.SQUASH_FLOOR_SPEED) b.squash(1.14, 0.86);
+          } else {
+            // no impulse on later iters; just keep it clamped
+            if (Math.abs(b.vy) < 2) b.vy = 0;
+          }
+        }
+      }
+
+      // pegs
+      for (const p of this.pegs){
+        for (const b of this.balls){
+          const dx = b.x - p.x;
+          const dy = b.y - p.y;
+          let dist = Math.hypot(dx, dy);
+          if (dist === 0) dist = 0.0001;
+          const minDist = b.r + p.r;
+          if (dist < minDist){
+            const nx = dx / dist;
+            const ny = dy / dist;
+            const overlap = minDist - dist;
+            b.x += nx * overlap;
+            b.y += ny * overlap;
+
+            if (applyImpulse){
+              const dot = b.vx * nx + b.vy * ny;
+              b.vx -= (1 + bounce) * dot * nx;
+              b.vy -= (1 + bounce) * dot * ny;
+              const impact = Math.abs(dot);
+              if (impact > CFG.SQUASH_BALL_SPEED) b.squash(0.92, 1.08);
+            }
+          }
+        }
+      }
+
+      // ball vs ball
+      for (let i=0; i<this.balls.length; i++){
+        for (let j=i+1; j<this.balls.length; j++){
+          const b1 = this.balls[i];
+          const b2 = this.balls[j];
+
+          const dx = b2.x - b1.x;
+          const dy = b2.y - b1.y;
+          let dist = Math.hypot(dx, dy);
+          if (dist === 0) dist = 0.0001;
+          const nx = dx / dist;
+          const ny = dy / dist;
+          const minDist = b1.r + b2.r;
+
+          // contact for merge tracking (use EPS)
+          const sameValue = (b1.value === b2.value);
+          const canMerge = sameValue && !b1.merging && !b2.merging;
+          const touching = dist <= (minDist + CFG.CONTACT_EPS);
+
+          if (touching && canMerge){
+            const key = this.pairKey(b1, b2);
+            seenThisStep.add(key);
+            const frames = (this.contactMap.get(key) || 0) + 1;
+            this.contactMap.set(key, frames);
+
+            if (frames >= CFG.MERGE_DWELL && !scheduled.has(b1.id) && !scheduled.has(b2.id)){
+              mergesToDo.push([b1,b2]);
+              scheduled.add(b1.id);
+              scheduled.add(b2.id);
+            }
+          }
+
+          // overlap resolution (always)
+          if (dist < minDist){
+            const overlap = minDist - dist;
+            b1.x -= nx * overlap * 0.5;
+            b1.y -= ny * overlap * 0.5;
+            b2.x += nx * overlap * 0.5;
+            b2.y += ny * overlap * 0.5;
+
+            if (applyImpulse){
+              const vdx = b2.vx - b1.vx;
+              const vdy = b2.vy - b1.vy;
+              const velAlongNormal = vdx * nx + vdy * ny;
+
+              if (velAlongNormal < 0){
+                const jImpulse = -(1 + bounce) * velAlongNormal;
+                const massRatio = 0.5;
+                b1.vx -= jImpulse * nx * massRatio;
+                b1.vy -= jImpulse * ny * massRatio;
+                b2.vx += jImpulse * nx * massRatio;
+                b2.vy += jImpulse * ny * massRatio;
+
+                const impact = Math.abs(velAlongNormal);
+                if (impact > CFG.SQUASH_BALL_SPEED){
+                  b1.squash(1.08, 0.92);
+                  b2.squash(1.08, 0.92);
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // clean stale contacts
+    for (const key of this.contactMap.keys()){
+      if (!seenThisStep.has(key)) this.contactMap.delete(key);
+    }
+
+    // execute merges (after solver)
+    for (const [b1,b2] of mergesToDo){
+      if (!b1 || !b2) continue;
+      if (b1.merging || b2.merging) continue;
+      if (!this.balls.includes(b1) || !this.balls.includes(b2)) continue;
+      this.merge(b1,b2);
+    }
+  }
+
+  merge(b1,b2){
+    b1.merging = true;
+    b2.merging = true;
+    this.purgeContactsFor(b1.id);
+    this.purgeContactsFor(b2.id);
+
+    const newVal = b1.value * 2;
+    this.maxValue = Math.max(this.maxValue, newVal);
+
+    const midX = (b1.x + b2.x)/2;
+    const midY = (b1.y + b2.y)/2;
+
+    this.createExplosion(midX, midY, COLORS[newVal] || '#fff');
+    this.playSound(300 + Math.log2(newVal)*50, 'sine', 0.2);
+
+    this.balls = this.balls.filter(b => b !== b1 && b !== b2);
+
+    const nb = new Ball(this.nextBallId++, midX, midY, CFG.BASE_RADIUS + (Math.log2(newVal)*2), newVal);
+    nb.vx = 0;
+    nb.vy = -100;
+    nb.scaleX = 1.2; nb.scaleY = 1.2;
+    this.balls.push(nb);
+
+    const basePoints = newVal;
+    this.comboTimer = CFG.COMBO_WINDOW;
+    const scoreAdd = Math.floor(basePoints * this.combo * this.riskBonus);
+    this.score += scoreAdd;
+
+    this.combo += 0.35;
+    if (this.combo > 4) this.combo = 4;
+
+    this.showComboUI();
+    this.updateUI();
+
+    if ((this.mode === 'level' || this.mode === 'challenge') && newVal >= this.targetValue){
+      const msg = (this.mode === 'level') ? "LEVEL CLEAR!" : "CHALLENGE WIN!";
+      this.gameOver(msg);
+    }
+  }
+
+  createExplosion(x,y,color){
+    for (let i=0; i<12; i++) this.particles.push(new Particle(x,y,color));
+  }
+
+  showComboUI(){
+    const el = document.getElementById('combo-ui');
+    if (this.combo > 1.3){
+      el.innerText = `x${this.combo.toFixed(2)} COMBO`;
+      el.style.opacity = 1;
+      setTimeout(() => el.style.opacity = 0, 800);
+    }
+  }
+
+  updateUI(){
+    document.getElementById('score-val').innerText = this.score;
+    document.getElementById('risk-val').innerText = this.riskBonus.toFixed(1) + 'x';
+    if (this.score > this.highScore){
+      this.highScore = this.score;
+      localStorage.setItem('mergeHighscore', this.highScore);
+      document.getElementById('high-score-val').innerText = this.highScore;
+    }
+  }
+
+  gameOver(msg){
+    this.state = 'OVER';
+    this.isPaused = false;
+    document.getElementById('menu-pause').classList.add('hidden');
+    document.getElementById('pause-fab').innerText = 'Pause';
+
+    document.getElementById('menu-over').classList.remove('hidden');
+    document.getElementById('over-title').innerText = msg;
+
+    const extra = (this.mode === 'endless')
+      ? `Max Tile: ${this.maxValue}`
+      : `Goal: ${this.targetValue} | Max Tile: ${this.maxValue}`;
+
+    document.getElementById('over-stats').innerText = `Final Score: ${this.score}\n${extra}`;
+  }
+
+  getTrajectoryPoints(){
+    if (this.state !== 'PLAYING') return [];
+    if (this.isPaused) return [];
+    if (this.isLimitedMode() && this.remainingDrops <= 0) return [];
+
+    const grav = parseFloat(document.getElementById('set-gravity').value);
+    const bounce = parseFloat(document.getElementById('set-bounce').value);
+
+    const value = this.nextValue;
+    const r = CFG.BASE_RADIUS + (Math.log2(value)*2);
+
+    let x = this.clampAimX(this.aimX);
+    let y = this.getHoldYForRadius(r);
+    let vx = 0, vy = 0;
+
+    const steps = Math.floor(CFG.TRAJ_SECONDS / CFG.TRAJ_DT);
+    const pts = [];
+    for (let i=0; i<steps; i++){
+      vy += grav * 1500 * CFG.TRAJ_DT;
+      x += vx * CFG.TRAJ_DT;
+      y += vy * CFG.TRAJ_DT;
+
+      if (x < r){ x = r; vx = Math.abs(vx) * bounce; }
+      if (x > this.width - r){ x = this.width - r; vx = -Math.abs(vx) * bounce; }
+      if (y > this.height - r){
+        y = this.height - r;
+        vy = -Math.abs(vy) * bounce;
+        vx *= 0.9;
+        if (Math.abs(vy) < 10) vy = 0;
+      }
+
+      if (i % CFG.TRAJ_SAMPLE_EVERY === 0) pts.push({x,y});
+      if (y >= this.height - r && vy === 0) break;
+    }
+    return pts;
+  }
+
+  drawHeldBallAndTrajectory(){
+    if (this.state !== 'PLAYING') return;
+
+    const pts = this.getTrajectoryPoints();
+    if (pts.length >= 2){
+      this.ctx.save();
+      this.ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+      this.ctx.lineWidth = 2;
+      this.ctx.setLineDash([8,8]);
+      this.ctx.beginPath();
+      this.ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i=1; i<pts.length; i++) this.ctx.lineTo(pts[i].x, pts[i].y);
+      this.ctx.stroke();
+      this.ctx.setLineDash([]);
+      this.ctx.restore();
+    }
+
+    if (this.isLimitedMode() && this.remainingDrops <= 0) return;
+
+    const locked = !this.canDropNow();
+    const value = this.nextValue;
+    const r = CFG.BASE_RADIUS + (Math.log2(value)*2);
+    const x = this.clampAimX(this.aimX);
+    const y = this.getHoldYForRadius(r);
+    const color = COLORS[value] || '#fff';
+
+    this.ctx.save();
+    this.ctx.globalAlpha = locked ? 0.35 : 1.0;
+    this.ctx.translate(x,y);
+
+    this.ctx.shadowBlur = 18;
+    this.ctx.shadowColor = color;
+
+    this.ctx.fillStyle = color;
+    this.ctx.beginPath();
+    this.ctx.arc(0,0,r,0,Math.PI*2);
+    this.ctx.fill();
+
+    this.ctx.shadowBlur = 0;
+    this.ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    this.ctx.beginPath();
+    this.ctx.arc(-r*0.3, -r*0.3, r*0.22, 0, Math.PI*2);
+    this.ctx.fill();
+
+    this.ctx.fillStyle = 'white';
+    this.ctx.font = `bold ${r*0.7}px Arial`;
+    this.ctx.textAlign = 'center';
+    this.ctx.textBaseline = 'middle';
+    this.ctx.fillText(value, 0, 0);
+
+    this.ctx.restore();
+
+    if (locked){
+      this.ctx.save();
+      this.ctx.fillStyle = 'rgba(255,255,255,0.55)';
+      this.ctx.font = '700 12px Arial';
+      this.ctx.textAlign = 'center';
+      this.ctx.fillText('WAIT', x, y + r + 18);
+      this.ctx.restore();
+    }
+  }
+
+  draw(){
+    this.ctx.clearRect(0,0,this.width,this.height);
+
+    // danger line
+    this.ctx.strokeStyle = `rgba(233, 69, 96, ${0.2 + Math.sin(Date.now()/200)*0.1})`;
+    this.ctx.lineWidth = 4;
+    this.ctx.setLineDash([10,10]);
+    this.ctx.beginPath();
+    this.ctx.moveTo(0, this.dangerY);
+    this.ctx.lineTo(this.width, this.dangerY);
+    this.ctx.stroke();
+    this.ctx.setLineDash([]);
+
+    // pegs
+    this.ctx.fillStyle = '#444';
+    for (const p of this.pegs){
+      this.ctx.beginPath();
+      this.ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      this.ctx.fill();
+    }
+
+    this.drawHeldBallAndTrajectory();
+
+    // draw order (helps visual depth; prevents "front-stuck" look when close)
+    const drawBalls = [...this.balls].sort((a,b) => (a.y - b.y) || (a.x - b.x) || (a.id - b.id));
+
+    for (const b of drawBalls){
+      this.ctx.save();
+      this.ctx.translate(b.x,b.y);
+      this.ctx.scale(b.scaleX, b.scaleY);
+
+      this.ctx.shadowBlur = 15;
+      this.ctx.shadowColor = b.color;
+
+      this.ctx.fillStyle = b.color;
+      this.ctx.beginPath();
+      this.ctx.arc(0,0,b.r,0,Math.PI*2);
+      this.ctx.fill();
+
+      this.ctx.fillStyle = 'rgba(255,255,255,0.2)';
+      this.ctx.beginPath();
+      this.ctx.arc(-b.r*0.3, -b.r*0.3, b.r*0.2, 0, Math.PI*2);
+      this.ctx.fill();
+
+      this.ctx.shadowBlur = 0;
+      this.ctx.fillStyle = 'white';
+      this.ctx.font = `bold ${b.r*0.7}px Arial`;
+      this.ctx.textAlign = 'center';
+      this.ctx.textBaseline = 'middle';
+      this.ctx.fillText(b.value, 0, 0);
+
+      this.ctx.restore();
+
+      // scale relax (faster when almost stopped -> fixes "oval at rest")
+      const speed = Math.abs(b.vx) + Math.abs(b.vy);
+      const relax = (speed < 1.0) ? 0.28 : 0.12;
+      b.scaleX += (1 - b.scaleX) * relax;
+      b.scaleY += (1 - b.scaleY) * relax;
+
+      // hard snap very near 1 (prevents tiny residual oval)
+      if (Math.abs(1 - b.scaleX) < 0.003) b.scaleX = 1;
+      if (Math.abs(1 - b.scaleY) < 0.003) b.scaleY = 1;
+    }
+
+    // particles
+    for (const p of this.particles){
+      this.ctx.globalAlpha = p.life;
+      this.ctx.fillStyle = p.color;
+      this.ctx.beginPath();
+      this.ctx.arc(p.x,p.y,p.size,0,Math.PI*2);
+      this.ctx.fill();
+    }
+    this.ctx.globalAlpha = 1;
+
+    // danger overlay
+    if (this.dangerTimer > 500){
+      this.ctx.fillStyle = `rgba(233, 69, 96, ${(this.dangerTimer/CFG.DANGER_TIME)*0.3})`;
+      this.ctx.fillRect(0,0,this.width,this.dangerY);
+    }
+  }
+}
+
+class Ball{
+  constructor(id,x,y,r,value){
+    this.id = id;
+    this.x=x; this.y=y;
+    this.vx=0; this.vy=0;
+    this.r=r;
+    this.value=value;
+    this.color = COLORS[value] || '#fff';
+    this.merging=false;
+    this.scaleX=1;
+    this.scaleY=1;
+    this.spawning=true;
+    setTimeout(() => this.spawning=false, 350);
+  }
+  squash(sx,sy){
+    // clamp to avoid extreme distortion
+    this.scaleX = Math.max(0.86, Math.min(1.18, sx));
+    this.scaleY = Math.max(0.86, Math.min(1.18, sy));
+  }
+}
+
+class Particle{
+  constructor(x,y,color){
+    this.x=x; this.y=y;
+    this.color=color;
+    this.vx=(Math.random()-0.5)*300;
+    this.vy=(Math.random()-0.5)*300;
+    this.size=Math.random()*4+2;
+    this.life=1.0;
+  }
+  update(dt){
+    this.x += this.vx*dt;
+    this.y += this.vy*dt;
+    this.life -= dt*1.5;
+  }
+}
+
+let game = new Game();
+
+function startGame(mode, drops){ game.startGame(mode, drops); }
+function resetGame(){ game.startGame(game.mode, game.challengeDropsChosen); }
+
+function showMain(){
+  game.state='MENU';
+  game.isPaused=false;
+  document.getElementById('pause-fab').innerText='Pause';
+  document.getElementById('menu-pause').classList.add('hidden');
+  document.getElementById('menu-main').classList.remove('hidden');
+  document.getElementById('menu-over').classList.add('hidden');
+  document.getElementById('menu-settings').classList.add('hidden');
+}
+
+function toggleSettings(){
+  const s=document.getElementById('menu-settings');
+  if (s.classList.contains('hidden')){
+    s.classList.remove('hidden');
+    document.getElementById('menu-main').classList.add('hidden');
+  } else {
+    s.classList.add('hidden');
+    document.getElementById('menu-main').classList.remove('hidden');
+  }
+}
+
+function togglePause(){
+  if (game.state !== 'PLAYING') return;
+  game.isPaused = !game.isPaused;
+  const pauseMenu = document.getElementById('menu-pause');
+  const btn = document.getElementById('pause-fab');
+  if (game.isPaused){
+    pauseMenu.classList.remove('hidden');
+    btn.innerText = 'Resume';
+  } else {
+    pauseMenu.classList.add('hidden');
+    btn.innerText = 'Pause';
+  }
+}
+</script>
+</body>
+</html>

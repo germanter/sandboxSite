@@ -81,6 +81,11 @@ const games = [
     title: "Brick By Brick 2D",
     link: "/games//brickBybrick2d.html",
     imgLink: "https://i.postimg.cc/dVvKWFgF/brick-By-Brick.webp"
+  },
+  {
+    title: "Merged Balls 2D",
+    link: "/games//mergedBalls2d.html",
+    imgLink: "https://i.postimg.cc/jd6r1rC9/merged-Balls.webp"
   }
 
 ];
