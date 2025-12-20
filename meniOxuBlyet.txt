@@ -17,3 +17,5 @@ oyunu ac temiz birdene snipper nen screenshotun al havali anda -> gir chromedan 
 webp - html de en yaxsi isleyen fayl uzantisi
 sora at onu bizim sayta pramoy img nin direct linkini sal liste hazir, sekilin boyutunun ferqi yoxdu isteyir
 1280x720 olsun istyir 567x345 olsun sistem onu handle eleyir
+
+https://postimg.cc/fJQFLvjy -- imagelerin sayti
