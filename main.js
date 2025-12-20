@@ -2,19 +2,62 @@
 
 //we just define title and link of games, we dont deal with color shit here
 const games = [
-  { title: "Shoot the Orbs 2D", link: "/games//theOrbs2d.html" },
-  { title: "Shoot the Orbs 3D", link: "/games//theOrbs3d.html" },
-  { title: "Make a mess Lab", link: "/games//makeAMessLab.html" },
-  { title: "Crazy Drone", link: "/games//crazyDrone.html" },
-  { title: "3D Arena", link: "/games//3dArena.html" },
-  { title: "2D Shaking Block", link: "/games//shakingBlock2d.html" },
-  { title: "3D Neon Race", link: "/games//neonRace3d.html" },
-  { title: "3D Shoot The Aliens", link: "/games//shootAliens3d.html" },
-  { title: "3D Shoot The Bloops", link: "/games//shootBloops3d.html" },
-  { title: "Crazy Impulse", link: "/games//crazyImpulse.html" },
-  { title: "2D Drag Blocks", link: "/games//dragBlocks2d.html" }
+  {
+    title: "Shoot the Orbs 2D",
+    link: "/games//theOrbs2d.html",
+    imgLink: "https://i.postimg.cc/dts1cT0S/shoot-The-Orbs2d.webp"
+  },
+  {
+    title: "Shoot the Orbs 3D",
+    link: "/games//theOrbs3d.html",
+    imgLink: "https://i.postimg.cc/TYtPdYLD/shoot-The-Orbs3d.webp"
+  },
+  {
+    title: "Make a mess Lab",
+    link: "/games//makeAMessLab.html",
+    imgLink: "https://i.postimg.cc/90tYRq3x/make-AMess-Lab.webp"
+  },
+  {
+    title: "Crazy Drone",
+    link: "/games//crazyDrone.html",
+    imgLink: "https://i.postimg.cc/9QSF98Y1/crazy-Drone.webp"
+  },
+  {
+    title: "3D Arena",
+    link: "/games//3dArena.html",
+    imgLink: "https://i.postimg.cc/Gpy3xFMw/3d-Arena.webp"
+  },
+  {
+    title: "2D Shaking Block",
+    link: "/games//shakingBlock2d.html",
+    imgLink: "https://i.postimg.cc/xCVfxX7k/shaking-Block.webp"
+  },
+  {
+    title: "3D Neon Race",
+    link: "/games//neonRace3d.html",
+    imgLink: "https://i.postimg.cc/NFggtWQ2/neon-Race.webp"
+  },
+  {
+    title: "3D Shoot The Aliens",
+    link: "/games//shootAliens3d.html",
+    imgLink: "https://i.postimg.cc/0jc9ycNn/shoot-The-Aliens.webp"
+  },
+  {
+    title: "3D Shoot The Bloops",
+    link: "/games//shootBloops3d.html",
+    imgLink: "https://i.postimg.cc/7PVH9YN5/shoot-The-Bloops.webp"
+  },
+  {
+    title: "Crazy Impulse",
+    link: "/games//crazyImpulse.html",
+    imgLink: "https://i.postimg.cc/445fPN1Q/crazy-Impulse.webp"
+  },
+  {
+    title: "2D Drag Blocks",
+    link: "/games//dragBlocks2d.html",
+    imgLink: "https://i.postimg.cc/Dyw2Mkjh/drag-ABlock.webp"
+  }
 ];
-
 //color base control here
 const colorPalette = [
   "blue",    // Mavi
@@ -56,8 +99,13 @@ games.forEach((game,index) => {
       ${game.title}
     </h3>
 
-    <div class="flex items-center justify-center h-32 mb-4">
-      <div class="w-20 h-20 rounded-full border-4 border-${color}-400"></div>
+    <div class="relative w-full h-40 mb-6 overflow-hidden rounded-xl border border-${color}-200">
+      <img 
+        src="${game.imgLink}" 
+        alt="${game.title}" 
+        class="w-full h-full object-cover transform hover:scale-110 transition-transform duration-500"
+        onerror="this.src='https://via.placeholder.com/300x200?text=Game+Image'"
+      />
     </div>
 
     <button 
