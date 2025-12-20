@@ -18,6 +18,11 @@ const games = [
     imgLink:"https://i.postimg.cc/j536Ls0k/wood-Master.webp"
   },
   {
+    title: "Merged Balls 2D",
+    link: "/games//mergedBalls2d.html",
+    imgLink: "https://i.postimg.cc/jd6r1rC9/merged-Balls.webp"
+  },
+  {
     title: "Make a mess Lab",
     link: "/games//makeAMessLab.html",
     imgLink: "https://i.postimg.cc/90tYRq3x/make-AMess-Lab.webp"
@@ -81,11 +86,6 @@ const games = [
     title: "Brick By Brick 2D",
     link: "/games//brickBybrick2d.html",
     imgLink: "https://i.postimg.cc/dVvKWFgF/brick-By-Brick.webp"
-  },
-  {
-    title: "Merged Balls 2D",
-    link: "/games//mergedBalls2d.html",
-    imgLink: "https://i.postimg.cc/jd6r1rC9/merged-Balls.webp"
   }
 
 ];
