@@ -1,51 +1,66 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="tr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="robots" content="noindex,nofollow">
-    <title>3D Physics Sandbox (Fixed)</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="robots" content="noindex,nofollow"/>
+    <title>3D Physics Sandbox (Mobile-ready)</title>
     <style>
-        body { margin: 0; overflow: hidden; font-family: sans-serif; background: #111; color: white; }
-        
-        #canvas-container { width: 100vw; height: 100vh; display: block; }
-
+        body { margin:0; overflow:hidden; font-family: sans-serif; background:#111; color:#fff; }
+        #canvas-container { width:100vw; height:100vh; display:block; touch-action:none; } /* touch-action:none -> capture pointer properly */
         #ui-panel {
-            position: absolute; top: 20px; right: 20px; width: 250px;
-            background: rgba(30, 30, 35, 0.9); padding: 20px; border-radius: 8px;
-            border: 1px solid rgba(255,255,255,0.1); user-select: none;
+            position: absolute; top:20px; right:20px; width:250px;
+            background: rgba(30,30,35,0.95); padding:20px; border-radius:8px;
+            border:1px solid rgba(255,255,255,0.08); user-select:none; z-index: 10;
+            transition: transform .18s ease, opacity .18s ease;
+        }
+        #ui-panel.collapsed { transform: translateY(45px) translateX(20px) scale(.92); opacity: .9; }
+
+        #ui-toggle {
+            display: none;
+            position: absolute; bottom: 18px; right: 18px;
+            width:48px; height:48px; border-radius:24px; background:#222; color:#fff;
+            border:1px solid rgba(255,255,255,0.06); z-index: 11; cursor:pointer;
+            display:flex; align-items:center; justify-content:center; font-weight:bold;
         }
 
         button {
-            width: 100%; padding: 12px; margin-bottom: 8px;
-            background: #333; border: 1px solid #555; color: white;
-            border-radius: 4px; cursor: pointer; font-weight: bold;
+            width:100%; padding:12px; margin-bottom:8px;
+            background:#333; border:1px solid #555; color:white; border-radius:6px; cursor:pointer; font-weight:700;
+            -webkit-tap-highlight-color: transparent;
         }
-        button:hover { background: #444; border-color: #666; }
-        button.spawn-btn { background: #2980b9; border-color: #3498db; }
-        button.reset-btn { background: #c0392b; border-color: #e74c3c; }
+        button:hover { background:#444; border-color:#666; }
+        button.spawn-btn { background:#2980b9; border-color:#3498db; }
+        button.reset-btn { background:#c0392b; border-color:#e74c3c; }
 
-        .instructions { font-size: 12px; color: #aaa; margin-top: 10px; line-height: 1.5; }
-        
+        .instructions { font-size:12px; color:#aaa; margin-top:10px; line-height:1.45; }
+
         #loading {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            font-size: 24px; pointer-events: none;
+            position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+            font-size:20px; pointer-events:none; z-index:9;
+        }
+
+        /* MOBILE: compact panel, show toggle */
+        @media (max-width: 720px) {
+            #ui-panel { width:150px; padding:10px; top:auto; bottom: 14px; right: 14px; border-radius:10px; }
+            button { padding:8px; font-size:13px; margin-bottom:6px; }
+            .instructions { display:none; } /* keep it tidy on small screens */
+            #ui-toggle { display:flex; }
         }
     </style>
 </head>
 <body>
-
     <div id="loading">Loading Physics Engine...</div>
     <div id="canvas-container"></div>
 
-    <div id="ui-panel">
-        <h3 style="margin-top:0">Physics Lab</h3>
+    <div id="ui-panel" aria-hidden="false">
+        <h3 style="margin:0 0 8px 0; font-size:16px;">Physics Lab</h3>
         <button class="spawn-btn" id="btn-box">Spawn Box</button>
         <button class="spawn-btn" id="btn-sphere">Spawn Sphere</button>
         <button id="btn-color">Random Color</button>
         <button class="reset-btn" id="btn-clear">Clear All</button>
 
-        <div class="instructions">
+        <div class="instructions" id="instructions">
             <strong>Left Drag Object:</strong> Grab & Move<br>
             <strong>Q / E:</strong> Rotate while holding<br>
             <strong>Release:</strong> Throw<br>
@@ -55,10 +70,9 @@
         </div>
     </div>
 
-    <!-- 
-      Using esm.sh to ensure reliable ES Module loading for both libraries.
-      This fixes the "CANNON is not defined" or constructor errors.
-    -->
+    <!-- Toggle for mobile -->
+    <button id="ui-toggle" aria-label="Toggle UI">☰</button>
+
     <script type="importmap">
         {
             "imports": {
@@ -78,14 +92,18 @@
         let scene, camera, renderer, world, controls;
         let clock = new THREE.Clock();
         const objects = []; // { mesh, body }
-        
+
         // Raycasting / Dragging
         const raycaster = new THREE.Raycaster();
         const mouse = new THREE.Vector2();
         let dragConstraint = null;
-        let dragBody = null;    // The invisible body the mouse controls
-        let draggedBody = null; // The actual object body we are holding
-        let dragPlane = null;   // Invisible plane to track mouse depth
+        let dragBody = null;    // kinematic body moved by pointer
+        let draggedBody = null; // the actual object body being held
+        let dragPlane = null;   // invisible plane to track depth
+
+        const canvasContainer = document.getElementById('canvas-container');
+        const uiPanel = document.getElementById('ui-panel');
+        const uiToggle = document.getElementById('ui-toggle');
 
         init();
 
@@ -94,14 +112,9 @@
                 setupThree();
                 setupPhysics();
                 setupEvents();
-                
-                // Hide loading text
-                document.getElementById('loading').style.display = 'none';
-                
-                // Start Loop
-                animate();
 
-                // Spawn one box to start
+                document.getElementById('loading').style.display = 'none';
+                animate();
                 spawnBox();
             } catch (e) {
                 console.error(e);
@@ -110,31 +123,30 @@
         }
 
         function setupThree() {
-            const container = document.getElementById('canvas-container');
-            
             scene = new THREE.Scene();
             scene.background = new THREE.Color(0x202025);
-            
-            camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
-            camera.position.set(0, 5, 12);
 
-            renderer = new THREE.WebGLRenderer({ antialias: true });
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 1000);
+            camera.position.set(0,5,12);
+
+            renderer = new THREE.WebGLRenderer({ antialias:true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.shadowMap.enabled = true;
-            container.appendChild(renderer.domElement);
+            canvasContainer.appendChild(renderer.domElement);
 
-            // Lights
+            // prevent default touch behaviors on the canvas
+            renderer.domElement.style.touchAction = 'none';
+
             const ambi = new THREE.AmbientLight(0xffffff, 0.4);
             scene.add(ambi);
 
             const dir = new THREE.DirectionalLight(0xffffff, 1);
-            dir.position.set(5, 10, 5);
+            dir.position.set(5,10,5);
             dir.castShadow = true;
             scene.add(dir);
 
-            // Floor (Visual)
-            const floorGeo = new THREE.PlaneGeometry(50, 50);
-            const floorMat = new THREE.MeshStandardMaterial({ color: 0x333333, roughness: 0.8 });
+            const floorGeo = new THREE.PlaneGeometry(50,50);
+            const floorMat = new THREE.MeshStandardMaterial({ color:0x333333, roughness:0.8 });
             const floor = new THREE.Mesh(floorGeo, floorMat);
             floor.rotation.x = -Math.PI/2;
             floor.receiveShadow = true;
@@ -143,30 +155,22 @@
             const grid = new THREE.GridHelper(50, 50, 0x555555, 0x222222);
             scene.add(grid);
 
-            // Controls
             controls = new OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
 
-            // Drag Plane (Invisible)
-            dragPlane = new THREE.Mesh(new THREE.PlaneGeometry(100, 100), new THREE.MeshBasicMaterial({ visible: false }));
+            dragPlane = new THREE.Mesh(new THREE.PlaneGeometry(200,200), new THREE.MeshBasicMaterial({ visible:false }));
             scene.add(dragPlane);
         }
 
         function setupPhysics() {
             world = new CANNON.World();
-            world.gravity.set(0, -9.82, 0);
-            
-            // Physics Materials
+            world.gravity.set(0,-9.82,0);
+
             const defMat = new CANNON.Material();
             const defContact = new CANNON.ContactMaterial(defMat, defMat, { friction: 0.4, restitution: 0.3 });
             world.addContactMaterial(defContact);
 
-            // Floor (Physics)
-            const floorBody = new CANNON.Body({
-                mass: 0, // Static
-                shape: new CANNON.Plane(),
-                material: defMat
-            });
+            const floorBody = new CANNON.Body({ mass:0, shape: new CANNON.Plane(), material: defMat });
             floorBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1,0,0), -Math.PI/2);
             world.addBody(floorBody);
         }
@@ -174,19 +178,17 @@
         function spawnBox() {
             const size = 1;
             const pos = { x: (Math.random()-0.5)*4, y: 5 + Math.random()*2, z: (Math.random()-0.5)*4 };
-            const color = Math.random() * 0xffffff;
+            const color = Math.random()*0xffffff;
 
-            // Visual
-            const geo = new THREE.BoxGeometry(size, size, size);
+            const geo = new THREE.BoxGeometry(size,size,size);
             const mat = new THREE.MeshStandardMaterial({ color: color });
             const mesh = new THREE.Mesh(geo, mat);
-            mesh.castShadow = true; 
-            mesh.position.set(pos.x, pos.y, pos.z);
+            mesh.castShadow = true;
+            mesh.position.set(pos.x,pos.y,pos.z);
             scene.add(mesh);
 
-            // Physics
             const shape = new CANNON.Box(new CANNON.Vec3(size/2, size/2, size/2));
-            const body = new CANNON.Body({ mass: 1, shape: shape });
+            const body = new CANNON.Body({ mass:1, shape: shape });
             body.position.copy(pos);
             world.addBody(body);
 
@@ -196,17 +198,17 @@
         function spawnSphere() {
             const r = 0.6;
             const pos = { x: (Math.random()-0.5)*4, y: 5 + Math.random()*2, z: (Math.random()-0.5)*4 };
-            const color = Math.random() * 0xffffff;
+            const color = Math.random()*0xffffff;
 
             const geo = new THREE.SphereGeometry(r, 32, 32);
             const mat = new THREE.MeshStandardMaterial({ color: color });
             const mesh = new THREE.Mesh(geo, mat);
             mesh.castShadow = true;
-            mesh.position.set(pos.x, pos.y, pos.z);
+            mesh.position.set(pos.x,pos.y,pos.z);
             scene.add(mesh);
 
             const shape = new CANNON.Sphere(r);
-            const body = new CANNON.Body({ mass: 1, shape: shape });
+            const body = new CANNON.Body({ mass:1, shape: shape });
             body.position.copy(pos);
             world.addBody(body);
 
@@ -220,107 +222,122 @@
                 renderer.setSize(window.innerWidth, window.innerHeight);
             });
 
-            // UI Buttons
+            // Buttons
             document.getElementById('btn-box').onclick = spawnBox;
             document.getElementById('btn-sphere').onclick = spawnSphere;
             document.getElementById('btn-clear').onclick = () => {
-                objects.forEach(obj => {
-                    scene.remove(obj.mesh);
-                    world.removeBody(obj.body);
-                });
+                objects.forEach(o => { scene.remove(o.mesh); world.removeBody(o.body); });
                 objects.length = 0;
             };
             document.getElementById('btn-color').onclick = () => {
-                objects.forEach(obj => obj.mesh.material.color.setHex(Math.random()*0xffffff));
+                objects.forEach(o => o.mesh.material.color.setHex(Math.random()*0xffffff));
             };
 
-            // Mouse Events for Dragging
-            window.addEventListener('mousedown', onMouseDown);
-            window.addEventListener('mousemove', onMouseMove);
-            window.addEventListener('mouseup', onMouseUp);
-            window.addEventListener('keydown', onKeyDown);
+            // UI toggle for mobile
+            uiToggle.addEventListener('click', () => {
+                uiPanel.classList.toggle('collapsed');
+            });
+
+            // Pointer events on the renderer canvas (works for mouse & touch & pen)
+            renderer.domElement.addEventListener('pointerdown', onPointerDown);
+            window.addEventListener('pointermove', onPointerMove);
+            window.addEventListener('pointerup', onPointerUp);
+
+            // keyboard rotation when dragging
+            window.addEventListener('keydown', (e) => {
+                if (draggedBody) {
+                    const k = e.key.toLowerCase();
+                    if (k === 'q') draggedBody.angularVelocity.y += 3;
+                    if (k === 'e') draggedBody.angularVelocity.y -= 3;
+                }
+            }, false);
         }
 
-        function onMouseDown(e) {
-            if(e.target.closest('#ui-panel')) return; // Don't click through UI
+        function getPointerNDCCoords(clientX, clientY) {
+            mouse.x = (clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(clientY / window.innerHeight) * 2 + 1;
+        }
 
-            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-            
+        function intersectObjectsFromPointer(clientX, clientY) {
+            getPointerNDCCoords(clientX, clientY);
             raycaster.setFromCamera(mouse, camera);
-            const intersects = raycaster.intersectObjects(objects.map(o => o.mesh));
+            return raycaster.intersectObjects(objects.map(o => o.mesh));
+        }
 
-            if(intersects.length > 0) {
-                // We hit an object
-                controls.enabled = false; // Stop camera
+        function onPointerDown(e) {
+            // Only handle primary pointer (ignore multi-touch extra pointers)
+            if (!e.isPrimary) return;
+
+            // If clicked on UI -> ignore
+            // Use elementFromPoint to be robust when UI is overlay
+            const el = document.elementFromPoint(e.clientX, e.clientY);
+            if (el && el.closest && el.closest('#ui-panel')) return;
+
+            e.preventDefault();
+
+            const intersects = intersectObjectsFromPointer(e.clientX, e.clientY);
+            if (intersects.length > 0) {
+                controls.enabled = false;
                 const hit = intersects[0];
                 const item = objects.find(o => o.mesh === hit.object);
                 draggedBody = item.body;
 
-                // Position invisible drag plane at hit depth facing camera
+                // place dragPlane at intersection and face camera
                 dragPlane.position.copy(hit.point);
                 dragPlane.quaternion.copy(camera.quaternion);
 
-                // Create kinematic body for mouse
+                // create kinematic drag body at point
                 dragBody = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC });
                 dragBody.position.copy(hit.point);
                 world.addBody(dragBody);
 
-                // Create constraint
+                // local pivot in object's frame
                 const localPivot = new CANNON.Vec3();
                 draggedBody.pointToLocalFrame(new CANNON.Vec3(hit.point.x, hit.point.y, hit.point.z), localPivot);
-                
+
                 dragConstraint = new CANNON.PointToPointConstraint(dragBody, new CANNON.Vec3(0,0,0), draggedBody, localPivot);
                 world.addConstraint(dragConstraint);
+            } else {
+                // no object hit -> let orbitcontrols handle rotation (do nothing)
             }
         }
 
-        function onMouseMove(e) {
-            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-
-            if(dragBody) {
+        function onPointerMove(e) {
+            if (!e.isPrimary) return;
+            if (dragBody) {
+                e.preventDefault();
+                // move dragBody to pointer intersection with dragPlane
+                getPointerNDCCoords(e.clientX, e.clientY);
                 raycaster.setFromCamera(mouse, camera);
                 const hits = raycaster.intersectObject(dragPlane);
-                if(hits.length > 0) {
-                    dragBody.position.copy(hits[0].point);
-                    if(draggedBody) draggedBody.wakeUp(); // Keep physics active
+                if (hits.length > 0) {
+                    const pt = hits[0].point;
+                    dragBody.position.copy(pt);
+                    if (draggedBody) draggedBody.wakeUp();
                 }
             }
         }
 
-        function onMouseUp() {
+        function onPointerUp(e) {
+            if (!e.isPrimary) return;
             controls.enabled = true;
-            if(dragConstraint) {
-                world.removeConstraint(dragConstraint);
+            if (dragConstraint) {
+                try { world.removeConstraint(dragConstraint); } catch (err) { /* ignore */ }
                 dragConstraint = null;
             }
-            if(dragBody) {
-                world.removeBody(dragBody);
+            if (dragBody) {
+                try { world.removeBody(dragBody); } catch (err) { /* ignore */ }
                 dragBody = null;
             }
             draggedBody = null;
         }
 
-        function onKeyDown(e) {
-            if(draggedBody) {
-                // Rotate held object
-                if(e.key.toLowerCase() === 'q') draggedBody.angularVelocity.y += 3;
-                if(e.key.toLowerCase() === 'e') draggedBody.angularVelocity.y -= 3;
-            }
-        }
-
         function animate() {
             requestAnimationFrame(animate);
-            
             const dt = Math.min(clock.getDelta(), 0.1);
-            
-            // Physics Step
-            // (fixedTimeStep, deltaTime, maxSubSteps)
             world.step(1/60, dt, 3);
 
-            // Sync Visuals
-            for(const o of objects) {
+            for (const o of objects) {
                 o.mesh.position.copy(o.body.position);
                 o.mesh.quaternion.copy(o.body.quaternion);
             }
