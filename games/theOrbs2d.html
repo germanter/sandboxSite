@@ -40,8 +40,8 @@
             display: flex;
             gap: 20px;
             pointer-events: auto;
-		flex-wrap: wrap; /* Küçük ekranlarda butonlar alt alta gelebilir */
-    		justify-content: center;
+            flex-wrap: wrap; 
+            justify-content: center;
         }
         button {
             background: rgba(0, 255, 204, 0.1);
@@ -107,6 +107,7 @@
 
     // --- Configuration ---
     let width, height;
+    let viewScale = 1.0; // Mobil için ölçekleme değişkeni
     let targets = [];
     let missiles = [];
     let particles = [];
@@ -138,25 +139,21 @@
             let angle = Math.random() * Math.PI * 2;
             let velMag = Math.random() * speed;
             this.vel = new Vector(Math.cos(angle) * velMag, Math.sin(angle) * velMag);
-            
             this.life = life;
             this.maxLife = life;
             this.color = color;
             this.type = type;
             this.size = Math.random() * 2 + 1;
         }
-
         update() {
             this.pos.add(this.vel);
             this.life--;
-            this.vel.mult(0.92); // High drag
-            
+            this.vel.mult(0.92);
             if (this.type === 'smoke' || this.type === 'gas') {
                 this.size += 0.2; 
-                this.vel.y -= 0.02; // Float up slightly
+                this.vel.y -= 0.02;
             }
         }
-
         draw(ctx) {
             ctx.save();
             ctx.globalAlpha = (this.life / this.maxLife);
@@ -177,37 +174,26 @@
             this.baseY = y;
             this.angle = 0;
         }
-
         update() {
             if (!this.active) return;
             this.pos.add(this.vel);
             if (this.pos.x < 50 || this.pos.x > width - 50) this.vel.x *= -1;
-            
-            // Hover movement
             this.pos.y = this.baseY + Math.sin(frame * 0.05) * 15;
-            
-            // Bank angle based on speed
             this.angle = this.vel.x * 0.05;
-
             if (this.evasive) {
                 if (Math.random() < 0.03) this.vel.x *= -1;
                 this.pos.y += Math.sin(frame * 0.5) * 3;
             }
         }
-
         draw(ctx) {
             if (!this.active) return;
-            
             ctx.save();
             ctx.translate(this.pos.x, this.pos.y);
             ctx.rotate(this.angle);
-
-            // Lock Indicator
             if (selectedTarget === this) {
-                ctx.restore(); // Draw UI non-rotated
+                ctx.restore();
                 ctx.strokeStyle = '#ff3333';
                 ctx.lineWidth = 2;
-                // Rotating brackets
                 let s = 25;
                 ctx.beginPath();
                 ctx.moveTo(this.pos.x-s, this.pos.y-s+10); ctx.lineTo(this.pos.x-s, this.pos.y-s); ctx.lineTo(this.pos.x-s+10, this.pos.y-s);
@@ -215,26 +201,16 @@
                 ctx.moveTo(this.pos.x-s, this.pos.y+s-10); ctx.lineTo(this.pos.x-s, this.pos.y+s); ctx.lineTo(this.pos.x-s+10, this.pos.y+s);
                 ctx.moveTo(this.pos.x+s, this.pos.y+s-10); ctx.lineTo(this.pos.x+s, this.pos.y+s); ctx.lineTo(this.pos.x+s-10, this.pos.y+s);
                 ctx.stroke();
-                
                 ctx.save();
                 ctx.translate(this.pos.x, this.pos.y);
                 ctx.rotate(this.angle);
             }
-
-            // Drone Body
             ctx.fillStyle = selectedTarget === this ? '#ffcccc' : '#ffffff';
             ctx.beginPath();
-            ctx.moveTo(0, -10);
-            ctx.lineTo(-15, 5);
-            ctx.lineTo(0, 10);
-            ctx.lineTo(15, 5);
-            ctx.fill();
-            
-            // Engines
+            ctx.moveTo(0, -10); ctx.lineTo(-15, 5); ctx.lineTo(0, 10); ctx.lineTo(15, 5); ctx.fill();
             ctx.fillStyle = '#00ffff';
             ctx.beginPath(); ctx.arc(-10, 5, 2, 0, Math.PI*2); ctx.fill();
             ctx.beginPath(); ctx.arc(10, 5, 2, 0, Math.PI*2); ctx.fill();
-
             ctx.restore();
         }
     }
@@ -242,217 +218,116 @@
     class Missile {
         constructor(x, y, target) {
             this.pos = new Vector(x, y);
-            
-            // Ejection: Moves UP strongly
             this.vel = new Vector(0, -14.0); 
             this.acc = new Vector(0, 0);
-            
-            // State
             this.target = target;
             this.active = true;
             this.state = 'ejection'; 
             this.timer = 0;
-            
-            // IMPORTANT: VISUAL ANGLE vs VELOCITY
-            // Angle is -90 degrees (Straight UP)
             this.angle = -Math.PI / 2;
-            
-            // Determine turn direction immediately
-            this.turnSide = (target.pos.x > x) ? 1 : -1; // 1 = Right, -1 = Left
+            this.turnSide = (target.pos.x > x) ? 1 : -1;
         }
-
         update() {
             if (!this.active) return;
             this.timer++;
-
-            // --- PHASE 1: EJECTION (Straight Up) ---
             if (this.state === 'ejection') {
-                this.acc = new Vector(0, 0.35); // Heavy gravity
-                
-                // Smoke ring at base
+                this.acc = new Vector(0, 0.35); 
                 if (this.timer < 5) {
                     particles.push(new Particle(this.pos.x, this.pos.y + 15, 'rgba(200,200,200,0.5)', 2, 30, 'gas'));
                 }
-
-                // Transition: When momentum is nearly gone
                 if (this.vel.y > -2) {
                     this.state = 'turnover';
                     this.timer = 0;
                 }
             }
-            
-            // --- PHASE 2: TURNOVER (The Tip-Over) ---
             else if (this.state === 'turnover') {
-                // Gravity still applies (falling down)
                 this.acc = new Vector(0, 0.2); 
-                
-                // PHYSICS: Drifting sideways slightly (Lateral Thruster force)
-                // This gives the "dragged right" feeling
                 this.acc.x += 0.05 * this.turnSide;
-
-                // VISUAL: Rotate the NOSE towards the target (Tip Over)
-                // We increment the angle. If target is right (1), angle increases from -90 to -45.
                 let rotationSpeed = 0.04;
                 this.angle += rotationSpeed * this.turnSide;
-
-                // Visual Thrusters: Lateral Jets (Puffs of gas from the nose side)
                 if (frame % 3 === 0) {
-                    // Calculate position of the "nose" thruster
-                    // We need to emit gas opposite to the turn direction
                     let jetAngle = this.angle + (this.turnSide > 0 ? Math.PI/2 : -Math.PI/2);
                     let tipX = this.pos.x + Math.cos(this.angle) * 10;
                     let tipY = this.pos.y + Math.sin(this.angle) * 10;
-                    
                     particles.push(new Particle(tipX, tipY, 'rgba(255,255,255,0.6)', 1.5, 15, 'gas'));
                 }
-
-                // Ignite Main Engine when tipped enough (approx 45 degrees or after time)
-                let absAngle = Math.abs(this.angle + Math.PI/2); // deviation from up
-                if (this.timer > 20 || absAngle > 0.8) {
-                    this.igniteEngine();
-                }
+                let absAngle = Math.abs(this.angle + Math.PI/2);
+                if (this.timer > 20 || absAngle > 0.8) { this.igniteEngine(); }
             }
-            
-            // --- PHASE 3: TRACKING (Main Motor) ---
             else if (this.state === 'tracking') {
-                // Aerodynamics: Gradually align velocity to facing angle for smooth curve
-                // And guide facing angle to target
-                
                 if (this.target && this.target.active) {
-                    // Guidance logic
                     let desired = Vector.sub(this.target.pos, this.pos);
                     let dist = desired.mag();
-                    
-                    // Prediction
                     let lead = this.target.vel.copy().mult(dist / 12);
                     desired.add(lead);
-                    
-                    // Get desired Angle
                     let desiredAngle = Math.atan2(desired.y, desired.x);
-                    
-                    // Smoothly rotate current angle to desired angle
                     let diff = desiredAngle - this.angle;
-                    // Normalize angle
                     while (diff <= -Math.PI) diff += Math.PI*2;
                     while (diff > Math.PI) diff -= Math.PI*2;
-                    
-                    this.angle += diff * 0.1; // Turn rate
+                    this.angle += diff * 0.1;
                 }
-
-                // MAIN THRUST: Always push in direction of the Nose (Angle)
                 let thrustVector = Vector.fromAngle(this.angle).mult(0.8);
                 this.acc.add(thrustVector);
-
-                // Update Velocity vector to eventually match Angle (Aerodynamic stability)
                 let currentSpeed = this.vel.mag();
                 let headingVector = Vector.fromAngle(this.angle).mult(currentSpeed);
-                // Blend actual velocity with heading (simulates fins correcting drift)
                 this.vel.x = this.vel.x * 0.9 + headingVector.x * 0.1;
                 this.vel.y = this.vel.y * 0.9 + headingVector.y * 0.1;
-
                 this.spawnExhaust();
             }
-
-            // Physics application
             this.vel.add(this.acc);
-            
-            // Drag / Terminal Velocity
-            if (this.state !== 'tracking') {
-                this.vel.mult(0.98); 
-            } else {
-                if (this.vel.mag() > 15) this.vel.normalize().mult(15);
-            }
-
+            if (this.state !== 'tracking') { this.vel.mult(0.98); } 
+            else { if (this.vel.mag() > 15) this.vel.normalize().mult(15); }
             this.pos.add(this.vel);
             this.acc.mult(0); 
-
-            // Collision
             if (this.target && this.target.active) {
                 let dist = Vector.sub(this.pos, this.target.pos).mag();
                 if (dist < 30) this.explode(true);
             }
-
-            // Bounds
             if (this.pos.y > height + 100) this.active = false;
         }
-
         igniteEngine() {
             this.state = 'tracking';
             shakeIntensity = 20;
-            
-            // KICK: Convert potential energy to kinetic in direction of nose
-            // We clear old "falling" velocity and replace it with "thrust" velocity
             this.vel = Vector.fromAngle(this.angle).mult(5); 
-
-            // Big Ignition Burst
             for(let i=0; i<30; i++) {
                 particles.push(new Particle(this.pos.x, this.pos.y, `rgba(255, 100, 0, 0.8)`, 3, 50, 'fire'));
             }
         }
-
         spawnExhaust() {
-            // Tail position based on angle
             let tailX = this.pos.x - Math.cos(this.angle) * 15;
             let tailY = this.pos.y - Math.sin(this.angle) * 15;
-
             particles.push(new Particle(tailX, tailY, `rgba(200, 200, 200, 0.4)`, 1, 40, 'smoke'));
             particles.push(new Particle(tailX, tailY, 'rgba(255, 200, 50, 1)', 1, 10, 'fire'));
         }
-
         explode(hitTarget) {
             this.active = false;
             if (hitTarget && this.target) {
                 this.target.active = false;
                 showStatus("INTERCEPTION CONFIRMED", "#00ffcc");
             }
-
             shakeIntensity = 40;
-
             for (let i = 0; i < 60; i++) {
                 let speed = Math.random() * 8 + 2;
                 particles.push(new Particle(this.pos.x, this.pos.y, `hsl(${Math.random()*60}, 100%, 60%)`, speed, 60, 'fire'));
             }
         }
-
         draw(ctx) {
             if (!this.active) return;
             ctx.save();
             ctx.translate(this.pos.x, this.pos.y);
-            
-            // ROTATE BY ANGLE (Not Velocity)
             ctx.rotate(this.angle + Math.PI / 2); 
-
-            // Missile Body
             ctx.fillStyle = '#e0e0e0';
             ctx.fillRect(-4, -15, 8, 30);
-            
-            // Nose Cone
             ctx.fillStyle = '#cc0000';
-            ctx.beginPath();
-            ctx.moveTo(-4, -15);
-            ctx.lineTo(0, -22);
-            ctx.lineTo(4, -15);
-            ctx.fill();
-
-            // Fins
+            ctx.beginPath(); ctx.moveTo(-4, -15); ctx.lineTo(0, -22); ctx.lineTo(4, -15); ctx.fill();
             ctx.fillStyle = '#444';
-            ctx.beginPath();
-            ctx.moveTo(-4, 10); ctx.lineTo(-10, 18); ctx.lineTo(-4, 15);
-            ctx.fill();
-            ctx.beginPath();
-            ctx.moveTo(4, 10); ctx.lineTo(10, 18); ctx.lineTo(4, 15);
-            ctx.fill();
-
-            // Tracking Light
+            ctx.beginPath(); ctx.moveTo(-4, 10); ctx.lineTo(-10, 18); ctx.lineTo(-4, 15); ctx.fill();
+            ctx.beginPath(); ctx.moveTo(4, 10); ctx.lineTo(10, 18); ctx.lineTo(4, 15); ctx.fill();
             if (this.state === 'tracking') {
-                ctx.fillStyle = '#ffff00';
-                ctx.globalAlpha = 0.8;
-                ctx.beginPath();
-                ctx.arc(0, 18, 3 + Math.random()*2, 0, Math.PI*2);
-                ctx.fill();
+                ctx.fillStyle = '#ffff00'; ctx.globalAlpha = 0.8;
+                ctx.beginPath(); ctx.arc(0, 18, 3 + Math.random()*2, 0, Math.PI*2); ctx.fill();
                 ctx.globalAlpha = 1.0;
             }
-
             ctx.restore();
         }
     }
@@ -465,30 +340,19 @@
         loop();
     }
 
-// createTargets fonksiyonunu bununla değiştir/güncelle
-function createTargets() {
-    targets = [];
-    const isMobile = width < height; // Ekran dikey mi?
-    
-    for (let i = 0; i < 4; i++) {
-        // Yatayda ekranın çok kenarına gitmemeleri için %20 margin bırakıyoruz
-        let marginX = width * 0.2;
-        let spawnWidth = width - (marginX * 2);
-        
-        // Dikeyde füze rampasıyla aralarında mesafe kalması için 
-        // ekranın sadece üst %30'luk kısmında doğmalarını sağlıyoruz
-        let spawnHeight = isMobile ? height * 0.3 : height * 0.4;
-
-        targets.push(new Target(
-            Math.random() * spawnWidth + marginX,
-            Math.random() * spawnHeight + 80 // En üstten 80px aşağıda
-        ));
+    function createTargets() {
+        targets = [];
+        const isMobile = window.innerWidth < 600;
+        for (let i = 0; i < 4; i++) {
+            let marginX = width * 0.2;
+            let spawnWidth = width - (marginX * 2);
+            let spawnHeight = isMobile ? height * 0.4 : height * 0.4;
+            targets.push(new Target(
+                Math.random() * spawnWidth + marginX,
+                Math.random() * spawnHeight + 100
+            ));
+        }
     }
-}
-
-// Target sınıfındaki update metodunda ekran dışına çıkma kontrolünü sıkılaştıralım
-// Bu kısım mevcut Target class içindeki update metoduna dahil edilebilir
-// Mevcut kodu değiştirmeden sadece "width - 50" olan yerleri dinamik yapıyoruz.
 
     function showStatus(text, color) {
         statusMsg.innerText = text;
@@ -498,25 +362,32 @@ function createTargets() {
         setTimeout(() => statusMsg.style.opacity = 0, 1500);
     }
 
-function resize() {
-    width = canvas.width = window.innerWidth;
-    height = canvas.height = window.innerHeight;
-    
-    // Ekran boyutu değiştiğinde hedefleri ekran içine geri çek
-    targets.forEach(t => {
-        if (t.pos.x > width) t.pos.x = width - 50;
-        if (t.pos.y > height) t.pos.y = height * 0.3;
-    });
-}
+    function resize() {
+        // EKRAN UZAKLAŞTIRMA MANTIĞI:
+        // Eğer ekran genişliği 600px'den küçükse (mobil), görünümü 0.6 katına indiriyoruz.
+        const realWidth = window.innerWidth;
+        const realHeight = window.innerHeight;
+        
+        viewScale = (realWidth < 600) ? 0.6 : 1.0;
+
+        canvas.width = realWidth;
+        canvas.height = realHeight;
+
+        // Mantıksal genişlik/yükseklik gerçek ekrandan daha büyük oluyor (Scale out)
+        width = realWidth / viewScale;
+        height = realHeight / viewScale;
+
+        targets.forEach(t => {
+            if (t.pos.x > width) t.pos.x = width - 50;
+            if (t.pos.y > height) t.pos.y = height * 0.3;
+        });
+    }
 
     function drawEnvironment() {
-        // Grid
         ctx.strokeStyle = 'rgba(0, 255, 204, 0.05)';
         ctx.lineWidth = 1;
         for (let x = 0; x <= width; x += 100) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
         for (let y = 0; y <= height; y += 100) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
-
-        // Launcher
         ctx.fillStyle = '#111';
         ctx.fillRect(width/2 - 25, height - 20, 50, 20);
         ctx.strokeStyle = '#444';
@@ -525,22 +396,17 @@ function resize() {
 
     function loop() {
         frame++;
-
         let activeTargets = 0;
         targets.forEach(t => { t.update(); if (t.active) activeTargets++; });
         targetCountDisplay.innerText = activeTargets;
-
         missiles.forEach(m => m.update());
         missiles = missiles.filter(m => m.active);
-
         for (let i = particles.length - 1; i >= 0; i--) {
             particles[i].update();
             if (particles[i].life <= 0) particles.splice(i, 1);
         }
-
         if (shakeIntensity > 0) shakeIntensity *= 0.9;
         if (shakeIntensity < 0.5) shakeIntensity = 0;
-
         if (selectedTarget && !selectedTarget.active) selectedTarget = null;
         if (selectedTarget) {
             fireBtn.disabled = false;
@@ -552,22 +418,20 @@ function resize() {
             fireBtn.innerText = "SELECT TARGET";
         }
 
-        // Draw
         ctx.fillStyle = '#050505';
-        ctx.fillRect(0, 0, width, height);
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
 
         ctx.save();
+        // Çizimi ölçeklendiriyoruz (Scale Out)
+        ctx.scale(viewScale, viewScale);
+
         if (shakeIntensity > 0) ctx.translate((Math.random()-0.5)*shakeIntensity, (Math.random()-0.5)*shakeIntensity);
-
         drawEnvironment();
-
         ctx.globalCompositeOperation = 'lighter';
         particles.forEach(p => p.draw(ctx));
         ctx.globalCompositeOperation = 'source-over';
-
         targets.forEach(t => t.draw(ctx));
         missiles.forEach(m => m.draw(ctx));
-
         ctx.restore();
 
         requestAnimationFrame(loop);
@@ -575,13 +439,14 @@ function resize() {
 
     canvas.addEventListener('click', (e) => {
         const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
+        // Tıklama koordinatlarını ölçek faktörüne bölerek doğru noktayı buluyoruz
+        const mx = (e.clientX - rect.left) / viewScale;
+        const my = (e.clientY - rect.top) / viewScale;
         
         let clicked = false;
         targets.forEach(t => {
             if (!t.active) return;
-            if (Math.sqrt((mx - t.pos.x)**2 + (my - t.pos.y)**2) < 40) {
+            if (Math.sqrt((mx - t.pos.x)**2 + (my - t.pos.y)**2) < 50) {
                 selectedTarget = t;
                 clicked = true;
             }
