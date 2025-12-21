@@ -12,6 +12,9 @@
       --panel:rgba(255,255,255,0.10);
       --panel2:rgba(0,0,0,0.85);
       --muted:#9aa0a6;
+
+      /* UI scale comes from JS */
+      --ui-scale: 1;
     }
     html, body {
       margin:0; padding:0;
@@ -23,7 +26,18 @@
       user-select:none;
     }
     canvas { display:block; width:100vw; height:100vh; }
-    #ui { position:absolute; inset:0; color:#fff; pointer-events:none; }
+
+    #ui {
+      position:absolute;
+      inset:0;
+      color:#fff;
+      pointer-events:none;
+      padding:
+        env(safe-area-inset-top)
+        env(safe-area-inset-right)
+        env(safe-area-inset-bottom)
+        env(safe-area-inset-left);
+    }
 
     .score-panel{
       position:absolute; top:16px; right:16px;
@@ -34,6 +48,9 @@
       border:1px solid rgba(0,242,255,0.25);
       text-align:right;
       min-width: 160px;
+
+      transform: scale(var(--ui-scale));
+      transform-origin: top right;
     }
     #score-label{ font-size:11px; color:var(--primary); letter-spacing:2px; }
     #score-big{ font-size:30px; font-weight:900; margin:2px 0 0 0; }
@@ -46,10 +63,13 @@
       border:1px solid rgba(255,255,255,0.12);
       padding:10px 14px; border-radius:12px;
       backdrop-filter: blur(10px);
+
+      transform: scale(var(--ui-scale));
+      transform-origin: top left;
     }
 
     #hint {
-      position:absolute; left:50%; transform:translateX(-50%);
+      position:absolute; left:50%;
       top:16px;
       font-size:12px;
       color:rgba(255,255,255,0.75);
@@ -60,6 +80,9 @@
       opacity:0.0;
       transition:opacity 0.25s ease;
       white-space:nowrap;
+
+      transform: translateX(-50%) scale(var(--ui-scale));
+      transform-origin: top center;
     }
 
     #msg-overlay{
@@ -77,7 +100,9 @@
 
     .menu{
       position:absolute; top:50%; left:50%;
-      transform:translate(-50%, -50%);
+      transform:translate(-50%, -50%) scale(var(--ui-scale));
+      transform-origin:center;
+
       text-align:center;
       pointer-events:auto;
       background:var(--panel2);
@@ -109,6 +134,9 @@
       display:flex;
       gap:10px;
       pointer-events:auto;
+
+      transform: scale(var(--ui-scale));
+      transform-origin: bottom left;
     }
     .chip{
       background:rgba(255,255,255,0.10);
@@ -184,13 +212,27 @@
 <script>
 /* ------------------------- TUNING ------------------------- */
 const CRANE_ANCHOR_SCREEN_Y = 52;
-const CRANE_BLOCK_SCREEN_Y  = 170;  // smaller => higher => more gap
+const CRANE_BLOCK_SCREEN_Y  = 170;  // do NOT change (timing/feel)
 const TOWER_TOP_RATIO       = 0.66;
 
 const ROPE_DETACH_FADE_TIME = 0.14;
 
 const SWING_BASE_OMEGA = 1.7;
 const SWING_OMEGA_GAIN = 0.035;
+/* ---------------------------------------------------------- */
+
+/* ------------------- RESPONSIVE SYSTEM --------------------
+   FIX #1: VIRTUAL_H was too large (1600) -> excessive fall distance.
+   Use a more balanced virtual resolution to match original feel.
+------------------------------------------------------------ */
+const VIRTUAL_W = 900;
+const VIRTUAL_H = 1000;
+
+let screenW = 0, screenH = 0;
+let dpr = 1;
+let viewScale = 1;
+let offsetX = 0;
+let offsetY = 0;
 /* ---------------------------------------------------------- */
 
 const canvas = document.getElementById('game');
@@ -228,7 +270,8 @@ function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
 function lerp(a, b, t){ return a + (b - a) * t; }
 function rand(a,b){ return a + Math.random()*(b-a); }
 
-let cssW = 0, cssH = 0;
+let cssW = VIRTUAL_W, cssH = VIRTUAL_H;
+
 let skyline = [];
 let stars = [];
 
@@ -256,35 +299,44 @@ function buildParallax(){
   }
 }
 
-function resize(){
-  const oldW = cssW || window.innerWidth;
-  const oldCenter = oldW / 2;
+/* --------- resize/orientation rAF debounce --------- */
+let resizeQueued = false;
+function requestResize(){
+  if (resizeQueued) return;
+  resizeQueued = true;
+  requestAnimationFrame(() => {
+    resizeQueued = false;
+    applyResize();
+  });
+}
 
-  cssW = window.innerWidth;
-  cssH = window.innerHeight;
+function applyResize(){
+  screenW = window.innerWidth;
+  screenH = window.innerHeight;
 
-  const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
-  canvas.width = Math.floor(cssW * dpr);
-  canvas.height = Math.floor(cssH * dpr);
-  canvas.style.width = cssW + 'px';
-  canvas.style.height = cssH + 'px';
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  dpr = Math.max(1, Math.min(3, window.devicePixelRatio || 1));
 
-  const newCenter = cssW / 2;
-  const dx = newCenter - oldCenter;
+  canvas.width = Math.floor(screenW * dpr);
+  canvas.height = Math.floor(screenH * dpr);
+  canvas.style.width = screenW + 'px';
+  canvas.style.height = screenH + 'px';
 
-  if (tower.length) for (const b of tower) b.x += dx;
-  if (current) current.x += dx;
-  for (const d of debris) d.x += dx;
-  for (const p of particles) p.x += dx;
+  viewScale = Math.min(screenW / VIRTUAL_W, screenH / VIRTUAL_H);
+  offsetX = (screenW - VIRTUAL_W * viewScale) * 0.5;
+  offsetY = (screenH - VIRTUAL_H * viewScale) * 0.5;
+
+  /* FIX #2: UI scale must follow viewScale (also under browser zoom),
+     never enlarge above 1. No lower clamp -> zoom/small windows won't blow up UI. */
+  const uiScale = Math.min(1, viewScale);
+  document.documentElement.style.setProperty('--ui-scale', uiScale.toFixed(4));
 
   buildParallax();
 
-  // important: if block is swinging, re-sync instantly after resize
   if (state === 'PLAY' && current && !current.falling){
     syncSwingPose(current);
   }
 }
+/* -------------------------------------------------- */
 
 let audioCtx = null;
 let soundOn = true;
@@ -362,7 +414,6 @@ function desiredTowerTopY(){
   return clamp(cssH * TOWER_TOP_RATIO, cssH * 0.55, cssH * 0.78);
 }
 
-/* --------- IMPORTANT FIX: instant swing position --------- */
 function swingRange(){
   return Math.min(cssW * 0.38, 360);
 }
@@ -372,7 +423,6 @@ function syncSwingPose(b){
   b.x = anchorX + Math.sin(b.phase) * range - b.w/2;
   b.y = -cameraY + CRANE_BLOCK_SCREEN_Y;
 }
-/* -------------------------------------------------------- */
 
 let state = 'MENU';
 let score = 0, floor = 0, combo = 0;
@@ -432,8 +482,6 @@ function pauseToggle(){
     state = 'PLAY';
     elPauseBadge.style.opacity = '0';
     showMenu(false);
-
-    // re-sync to avoid any mid-pause rope jitter
     if (current && !current.falling) syncSwingPose(current);
   }
 }
@@ -457,7 +505,6 @@ function spawnNextBlock(){
   b.phase = rand(0, Math.PI * 2);
   current = b;
 
-  // FIX: no (0,0) frame -> place instantly
   syncSwingPose(current);
 }
 
@@ -541,15 +588,8 @@ function checkLanding(prev){
   spawnNextBlock();
 }
 
-/* ---------- Background ---------- */
-function drawBackground(){
-  const grd = ctx.createLinearGradient(0, 0, 0, cssH);
-  grd.addColorStop(0, "#050508");
-  grd.addColorStop(1, "#1a1a2e");
-  ctx.fillStyle = grd;
-  ctx.fillRect(0, 0, cssW, cssH);
-
-  // stars
+/* ---------- Background layers (world-space) ---------- */
+function drawBackgroundLayers(){
   const starOff = (cameraY * 0.04) % cssH;
   for (const s of stars){
     const y = (s.y + starOff) % cssH;
@@ -559,7 +599,6 @@ function drawBackground(){
   }
   ctx.globalAlpha = 1;
 
-  // skyline clip to bottom zone => no weird top rectangles
   ctx.save();
   const clipY = cssH * 0.42;
   ctx.beginPath();
@@ -578,7 +617,6 @@ function drawBackground(){
 
     ctx.fillRect(b.x, y, b.w, b.h);
 
-    // draw second copy only if needed to fill bottom (not top)
     if (y + b.h < clipY){
       ctx.fillRect(b.x, y + wrap, b.w, b.h);
     }
@@ -586,15 +624,8 @@ function drawBackground(){
 
   ctx.restore();
   ctx.globalAlpha = 1;
-
-  const v = ctx.createRadialGradient(cssW/2, cssH/2, cssH*0.2, cssW/2, cssH/2, cssH*0.85);
-  v.addColorStop(0, "rgba(0,0,0,0)");
-  v.addColorStop(1, "rgba(0,0,0,0.55)");
-  ctx.fillStyle = v;
-  ctx.fillRect(0, 0, cssW, cssH);
 }
 
-/* ---------- Update + Draw ---------- */
 function update(realDt){
   if (state !== 'PLAY') return;
 
@@ -642,14 +673,30 @@ function update(realDt){
 }
 
 function draw(){
-  ctx.clearRect(0, 0, cssW, cssH);
-  drawBackground();
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const grd = ctx.createLinearGradient(0, 0, 0, screenH);
+  grd.addColorStop(0, "#050508");
+  grd.addColorStop(1, "#1a1a2e");
+  ctx.fillStyle = grd;
+  ctx.fillRect(0, 0, screenW, screenH);
+
+  const v = ctx.createRadialGradient(screenW/2, screenH/2, screenH*0.2, screenW/2, screenH/2, screenH*0.85);
+  v.addColorStop(0, "rgba(0,0,0,0)");
+  v.addColorStop(1, "rgba(0,0,0,0.55)");
+  ctx.fillStyle = v;
+  ctx.fillRect(0, 0, screenW, screenH);
+
+  ctx.translate(offsetX, offsetY);
+  ctx.scale(viewScale, viewScale);
 
   const sx = (Math.random() - 0.5) * shake;
   const sy = (Math.random() - 0.5) * shake;
 
   ctx.save();
   ctx.translate(sx, cameraY + sy);
+
+  drawBackgroundLayers();
 
   for (const b of tower){
     ctx.fillStyle = b.color;
@@ -725,7 +772,6 @@ function draw(){
   ctx.restore();
 }
 
-/* ---------- Loop + Controls ---------- */
 function loop(ts){
   if (!lastTime) lastTime = ts;
   let realDt = (ts - lastTime) / 1000;
@@ -758,13 +804,43 @@ function onKeyDown(e){
   }
 }
 
+function screenToWorld(clientX, clientY){
+  const rect = canvas.getBoundingClientRect();
+  const x = (clientX - rect.left);
+  const y = (clientY - rect.top);
+  return {
+    x: (x - offsetX) / viewScale,
+    y: (y - offsetY) / viewScale
+  };
+}
+
+let pointerDownId = null;
 function onPointerDown(e){
   if (e.target && e.target.closest && e.target.closest('#hud-buttons')) return;
   if (e.target && e.target.closest && e.target.closest('.menu')) return;
 
+  e.preventDefault();
+
+  pointerDownId = e.pointerId;
+  if (canvas.setPointerCapture) canvas.setPointerCapture(pointerDownId);
+
+  screenToWorld(e.clientX, e.clientY);
+
   if (state === 'MENU' || state === 'OVER'){ startNewGame(); return; }
   if (state === 'PAUSE'){ pauseToggle(); return; }
   drop();
+}
+
+function onPointerMove(e){
+  if (pointerDownId !== e.pointerId) return;
+  e.preventDefault();
+  screenToWorld(e.clientX, e.clientY);
+}
+
+function onPointerUp(e){
+  if (pointerDownId !== e.pointerId) return;
+  e.preventDefault();
+  pointerDownId = null;
 }
 
 btnStart.addEventListener('click', () => startNewGame());
@@ -777,17 +853,23 @@ btnSound.addEventListener('click', () => {
   if (soundOn) tone(380, 0.08, 'sine', 0.06);
 });
 
-window.addEventListener('resize', resize);
+window.addEventListener('resize', requestResize);
+window.addEventListener('orientationchange', requestResize);
 window.addEventListener('keydown', onKeyDown);
+
 canvas.addEventListener('pointerdown', onPointerDown, { passive: false });
+canvas.addEventListener('pointermove', onPointerMove, { passive: false });
+canvas.addEventListener('pointerup', onPointerUp, { passive: false });
+canvas.addEventListener('pointercancel', onPointerUp, { passive: false });
 
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && state === 'PLAY') pauseToggle();
 });
 
-/* ---------- Init ---------- */
+document.addEventListener('gesturestart', (e) => e.preventDefault(), { passive: false });
+
 function init(){
-  resize();
+  requestResize();
   elBest.textContent = best;
   showMenu(true, false);
   setHintVisible(true);
