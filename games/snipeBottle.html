@@ -12,10 +12,19 @@
             --glass: rgba(15, 25, 35, 0.85);
             --border: rgba(0, 242, 255, 0.3);
         }
-        body { margin: 0; overflow: hidden; background-color: #87ceeb; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; user-select: none; }
-        canvas { display: block; }
 
-        /* Modern UI Glass Effect */
+        html, body { width: 100%; height: 100%; }
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #87ceeb;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+            touch-action: none;
+            overscroll-behavior: none;
+        }
+        canvas { display: block; touch-action: none; }
+
         .glass-panel {
             background: var(--glass);
             backdrop-filter: blur(12px);
@@ -33,11 +42,19 @@
 
         .hud-top-left { position: absolute; top: 20px; left: 20px; }
         .hud-top-right { position: absolute; top: 20px; right: 20px; }
-        
-        /* New Top Pause Menu */
+
+        .hud-top-center {
+            position: absolute;
+            top: 14px;
+            left: 50%;
+            transform: translateX(-50%);
+            pointer-events: auto;
+            z-index: 103;
+        }
+
         #top-pause-bar {
             position: absolute; top: 0; left: 0; width: 100%; height: 60px;
-            background: rgba(0,0,0,0.7); display: none; /* Hidden by default */
+            background: rgba(0,0,0,0.7); display: none;
             align-items: center; justify-content: center; gap: 20px;
             pointer-events: auto; z-index: 101; border-bottom: 1px solid var(--primary);
         }
@@ -59,7 +76,6 @@
         .btn:active { transform: translateY(0); }
         .btn-restart { background: #555; color: white; }
 
-        /* Menus */
         .overlay {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0,10,20,0.6); display: flex;
@@ -72,6 +88,7 @@
             width: 20px; height: 20px;
             border: 2px solid var(--primary); border-radius: 50%;
             transform: translate(-50%, -50%); pointer-events: none;
+            z-index: 12;
         }
         #crosshair::before, #crosshair::after {
             content: ''; position: absolute; background: var(--primary);
@@ -82,15 +99,18 @@
         #scope-overlay {
             position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
             background: radial-gradient(circle, transparent 30%, black 70%);
-            display: none; pointer-events: none; z-index: 5;
+            display: none; pointer-events: none; z-index: 50;
         }
         #scope-overlay .reticle-v { position: absolute; left: 50%; top: 0; width: 1px; height: 100%; background: rgba(0, 255, 0, 0.3); }
         #scope-overlay .reticle-h { position: absolute; top: 50%; left: 0; width: 100%; height: 1px; background: rgba(0, 255, 0, 0.3); }
 
+        /* ✅ Reload yazısı geri + her zaman üstte */
         #reload-msg {
             position: absolute; top: 65%; left: 50%; transform: translate(-50%, -50%);
             color: var(--danger); font-size: 24px; font-weight: bold; display: none;
             letter-spacing: 4px; text-shadow: 0 0 10px rgba(255,0,0,0.5);
+            z-index: 260;
+            pointer-events: none;
         }
 
         #settings-panel { position: absolute; bottom: 20px; left: 20px; pointer-events: auto; z-index: 102; }
@@ -98,11 +118,94 @@
         input[type=range] { width: 120px; accent-color: var(--primary); cursor: pointer; }
 
         .hint { font-size: 12px; opacity: 0.6; margin-top: 10px; }
+
+        /* Mobile buttons */
+        #mobile-controls {
+            position: absolute;
+            left: 0; right: 0;
+            bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 0 calc(16px + env(safe-area-inset-left, 0px)) 0 calc(16px + env(safe-area-inset-right, 0px));
+            pointer-events: none;
+            z-index: 120;
+        }
+        body.phone-mode #mobile-controls { display: flex; }
+
+        /* ✅ Phone-mode Reload butonu (merkez alt) */
+        #mobile-reload {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+            display: none;
+            pointer-events: none;
+            z-index: 121;
+        }
+        body.phone-mode #mobile-reload { display: block; }
+
+        .mbtn {
+            pointer-events: auto;
+            width: clamp(74px, 16vw, 120px);
+            height: clamp(74px, 16vw, 120px);
+            border-radius: 18px;
+            border: 1px solid rgba(255,255,255,0.18);
+            background: rgba(0,0,0,0.35);
+            backdrop-filter: blur(10px);
+            color: white;
+            font-weight: 900;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .mbtn:active {
+            transform: scale(0.98);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.25), 0 0 18px rgba(0,242,255,0.22);
+        }
+        #zoom-btn, #shoot-btn { border-color: rgba(0,242,255,0.35); }
+
+        /* Reload small button style */
+        .mbtn.small {
+            width: clamp(120px, 26vw, 180px);
+            height: clamp(46px, 8vw, 58px);
+            border-radius: 14px;
+        }
+
+        #rotate-hint {
+            display: none;
+            z-index: 300;
+            text-align: center;
+            padding: 24px;
+        }
+        #rotate-hint p { max-width: 520px; line-height: 1.6; margin: 8px 0 18px; opacity: 0.9; }
+
+        @media (max-width: 900px) {
+            .glass-panel { padding: 12px; }
+            #ammo-container {
+                right: 20px; bottom: 24px;
+                font-size: clamp(34px, 8vw, 54px);
+            }
+            .hud-top-left { top: 14px; left: 14px; }
+            .hud-top-right { top: 14px; right: 14px; }
+        }
+        @media (max-width: 600px) {
+            .glass-panel { padding: 10px; border-radius: 10px; }
+            #settings-panel { bottom: 12px; left: 12px; }
+            input[type=range] { width: 110px; }
+            .hud-top-center { top: 10px; }
+            .btn { padding: 8px 14px; font-size: 12px; }
+        }
     </style>
 </head>
 <body>
 
-    <!-- Top Navigation Menu (Visible when paused) -->
     <div id="top-pause-bar">
         <span style="color: var(--primary); font-weight: bold; margin-right: 20px;">GAME PAUSED</span>
         <button class="btn" id="resume-btn">CONTINUE</button>
@@ -113,16 +216,22 @@
         <div class="hud-top-left">
             <h2 style="margin:0; color: var(--primary); text-transform: uppercase;">SnipeBottles <span style="font-weight: 300; font-size: 14px; color: white;">v2.0</span></h2>
             <div id="score" style="font-size: 24px; font-weight: bold;">SMASHED: 0</div>
-		<div style="font-size: 24px; font-weight: bold;">SHOOT : Left Click</div>
-		<div style="font-size: 24px; font-weight: bold;">ZOOM : Right Click</div>
-		<div style="font-size: 24px; font-weight: bold;">Mouse : ESC</div>
+            <div id="desktop-help">
+                <div style="font-size: 24px; font-weight: bold;">SHOOT : Left Click</div>
+                <div style="font-size: 24px; font-weight: bold;">ZOOM : Right Click</div>
+                <div style="font-size: 24px; font-weight: bold;">RELOAD : R</div>
+                <div style="font-size: 24px; font-weight: bold;">Mouse : ESC</div>
+            </div>
+        </div>
+
+        <div class="hud-top-center">
+            <button class="btn" id="phone-toggle">ENABLE PHONE CONTROLS</button>
         </div>
 
         <div class="hud-top-right">
             <div id="timer" class="glass-panel" style="font-size: 32px; font-family: monospace; color: var(--primary);">60.0s</div>
         </div>
 
-        <!-- Sensitivity remains accessible here -->
         <div id="settings-panel" class="glass-panel">
             <span class="slider-label">MOUSE SENSITIVITY</span>
             <input type="range" id="sens-slider" min="0.0001" max="0.005" step="0.0001" value="0.0015">
@@ -131,30 +240,49 @@
         <div id="ammo-container">
             <span id="ammo-count">5</span><span style="font-size: 20px; opacity: 0.4">/5</span>
         </div>
+
+        <div id="mobile-controls" aria-hidden="true">
+            <button class="mbtn" id="zoom-btn">ZOOM</button>
+            <button class="mbtn" id="shoot-btn">SHOOT</button>
+        </div>
+
+        <div id="mobile-reload" aria-hidden="true">
+            <button class="mbtn small" id="reload-btn">RELOAD</button>
+        </div>
     </div>
 
     <div id="reload-msg">RELOADING...</div>
     <div id="crosshair"></div>
-    
+
     <div id="scope-overlay">
         <div class="reticle-v"></div>
         <div class="reticle-h"></div>
     </div>
 
-    <!-- Screens -->
     <div id="start-screen" class="overlay">
         <h1 style="font-size: 64px; letter-spacing: 10px; margin-bottom: 10px;">SNIPER <span style="color: var(--primary)">PRO</span></h1>
-        <p style="margin-bottom: 30px; text-align: center; line-height: 1.6;">
+        <p id="start-help" style="margin-bottom: 30px; text-align: center; line-height: 1.6;">
             [L-CLICK] FIRE | [R-CLICK] ZOOM | [R] RELOAD<br>
             [ESC] UNLOCK MOUSE / PAUSE
         </p>
         <button class="btn" id="start-btn">Initialize Training</button>
+        <div class="hint">Tip: For mobile/tablet, enable Phone Controls (top button).</div>
     </div>
 
     <div id="game-over" class="overlay" style="display: none;">
         <h1 style="color: var(--danger); font-size: 50px;">SESSION ENDED</h1>
         <div id="final-score" style="font-size: 28px; margin-bottom: 30px; font-family: monospace;"></div>
         <button class="btn" onclick="location.reload()">RESTART</button>
+    </div>
+
+    <div id="rotate-hint" class="overlay">
+        <h2 style="margin:0; color: var(--primary); text-transform: uppercase; letter-spacing: 2px;">Landscape Recommended</h2>
+        <p>
+            Phone Controls is active. For the best aim control, rotate your device to landscape.
+            If supported, press the button below to go fullscreen and lock orientation.
+        </p>
+        <button class="btn" id="fullscreen-btn">GO FULLSCREEN</button>
+        <div class="hint">If your browser blocks orientation lock, just rotate manually.</div>
     </div>
 
     <script type="importmap">
@@ -167,6 +295,23 @@
 
     <script type="module">
         import * as THREE from 'three';
+
+        // Device detect (used for performance caps)
+        const isCoarsePointer = () => (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) || ('ontouchstart' in window);
+        const isMobileUA = () => /Android|iPhone|iPad|iPod|IEMobile|Opera Mini/i.test(navigator.userAgent || '');
+        const isMobileLike = () => isCoarsePointer() || isMobileUA();
+
+        // Robust resize (rAF debounce)
+        let pendingResize = false;
+        function scheduleResize() {
+            if (pendingResize) return;
+            pendingResize = true;
+            requestAnimationFrame(() => {
+                pendingResize = false;
+                applyResize();
+                updateRotateHint();
+            });
+        }
 
         // --- Game State ---
         let score = 0, ammo = 5, timeLeft = 60;
@@ -194,25 +339,54 @@
 
         // --- Scene Setup ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xa3d8ff); 
+        scene.background = new THREE.Color(0xa3d8ff);
         scene.fog = new THREE.Fog(0xa3d8ff, 40, 150);
 
         const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap; 
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: "high-performance" });
+
+        // ✅ Renk/parlaklık: toneMapping geri + biraz daha canlı
         renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        renderer.toneMappingExposure = 1.2;
+        renderer.toneMappingExposure = 1.32; // az parlaklık
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+
         document.body.appendChild(renderer.domElement);
+
+        // FULLSCREEN CANVAS
+        function applyResize() {
+            const mobile = isMobileLike();
+            const dprRaw = window.devicePixelRatio || 1;
+            const dpr = mobile ? Math.min(dprRaw, 1.25) : Math.min(dprRaw, 2);
+
+            renderer.setPixelRatio(dpr);
+            renderer.setSize(window.innerWidth, window.innerHeight, false);
+
+            const c = renderer.domElement;
+            c.style.position = 'fixed';
+            c.style.left = '0';
+            c.style.top = '0';
+            c.style.width = '100%';
+            c.style.height = '100%';
+            c.style.zIndex = '1';
+
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+        }
+
+        renderer.shadowMap.enabled = true;
 
         const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
         scene.add(ambientLight);
-        
+
         const sunLight = new THREE.DirectionalLight(0xffffff, 2.0);
         sunLight.position.set(20, 40, 20);
         sunLight.castShadow = true;
         scene.add(sunLight);
+
+        const mobilePerf = isMobileLike();
+        renderer.shadowMap.type = mobilePerf ? THREE.BasicShadowMap : THREE.PCFSoftShadowMap;
+        sunLight.shadow.mapSize.set(mobilePerf ? 512 : 1024, mobilePerf ? 512 : 1024);
 
         const floor = new THREE.Mesh(
             new THREE.PlaneGeometry(1000, 1000),
@@ -222,12 +396,12 @@
         floor.receiveShadow = true;
         scene.add(floor);
 
-        for(let i=0; i<100; i++) {
+        for (let i = 0; i < 100; i++) {
             const x = (Math.random() - 0.5) * 200;
             const z = -Math.random() * 180 - 10;
             if (Math.abs(x) < 10 && z > -15) continue;
-            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.4, 3), new THREE.MeshStandardMaterial({color: 0x3d2b1f}));
-            const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.5, 5, 8), new THREE.MeshStandardMaterial({color: 0x2d5a27}));
+            const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.4, 3), new THREE.MeshStandardMaterial({ color: 0x3d2b1f }));
+            const leaves = new THREE.Mesh(new THREE.ConeGeometry(1.5, 5, 8), new THREE.MeshStandardMaterial({ color: 0x2d5a27 }));
             trunk.position.set(x, 1.5, z); leaves.position.set(x, 4.5, z);
             scene.add(trunk, leaves);
         }
@@ -249,28 +423,34 @@
         const resumeBtn = document.getElementById('resume-btn');
         const topPauseBar = document.getElementById('top-pause-bar');
 
+        const phoneToggleBtn = document.getElementById('phone-toggle');
+        const mobileControls = document.getElementById('mobile-controls');
+        const shootBtn = document.getElementById('shoot-btn');
+        const zoomBtn = document.getElementById('zoom-btn');
+        const reloadBtn = document.getElementById('reload-btn');
+        const rotateHint = document.getElementById('rotate-hint');
+        const fullscreenBtn = document.getElementById('fullscreen-btn');
+        const startHelp = document.getElementById('start-help');
+        const desktopHelp = document.getElementById('desktop-help');
+
+        let phoneMode = false;
+
         function requestLock() {
-            document.body.requestPointerLock();
+            if (phoneMode) return;
+            if (document.body.requestPointerLock) document.body.requestPointerLock();
         }
 
         document.addEventListener('pointerlockchange', () => {
             if (document.pointerLockElement === document.body) {
                 isPaused = false;
-                topPauseBar.style.display = 'none'; // Hide top bar when playing
+                topPauseBar.style.display = 'none';
             } else {
-                if (gameActive) {
+                if (gameActive && !phoneMode) {
                     isPaused = true;
-                    topPauseBar.style.display = 'flex'; // Show top bar when paused
+                    topPauseBar.style.display = 'flex';
                 }
             }
         });
-
-        startBtn.onclick = () => {
-            gameActive = true;
-            document.getElementById('start-screen').style.display = 'none';
-            requestLock();
-            startTimer();
-        };
 
         resumeBtn.onclick = requestLock;
 
@@ -280,7 +460,7 @@
             if (document.pointerLockElement === document.body && !isPaused) {
                 targetRotationY -= e.movementX * sensitivity;
                 targetRotationX -= e.movementY * sensitivity;
-                targetRotationX = Math.max(-Math.PI/2.5, Math.min(Math.PI/2.5, targetRotationX));
+                targetRotationX = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, targetRotationX));
             }
         });
 
@@ -298,7 +478,7 @@
 
         function endGame() {
             gameActive = false;
-            document.exitPointerLock();
+            if (!phoneMode) document.exitPointerLock();
             document.getElementById('game-over').style.display = 'flex';
             document.getElementById('final-score').innerText = `BOTTLES SMASHED: ${score}`;
         }
@@ -306,7 +486,10 @@
         // --- Bottle Logic ---
         function createBottle() {
             const bGroup = new THREE.Group();
-            const mat = new THREE.MeshPhysicalMaterial({ color: Math.random() > 0.5 ? 0x00f2ff : 0xe3ff00, roughness: 0, metalness: 0.5, transmission: 0.5, thickness: 0.5 });
+            const mat = new THREE.MeshPhysicalMaterial({
+                color: Math.random() > 0.5 ? 0x00f2ff : 0xe3ff00,
+                roughness: 0, metalness: 0.5, transmission: 0.5, thickness: 0.5
+            });
             const bBody = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.18, 0.7, 12), mat);
             const bNeck = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.3, 12), mat);
             bNeck.position.y = 0.5; bGroup.add(bBody, bNeck);
@@ -314,13 +497,16 @@
             scene.add(bGroup);
             targetBottles.push(bGroup);
         }
-        for(let i=0; i<18; i++) createBottle();
+        for (let i = 0; i < 18; i++) createBottle();
 
         function shatter(pos, color) {
             for (let i = 0; i < 15; i++) {
-                const p = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.06), new THREE.MeshStandardMaterial({ color: color }));
+                const p = new THREE.Mesh(
+                    new THREE.BoxGeometry(0.06, 0.06, 0.06),
+                    new THREE.MeshStandardMaterial({ color: color })
+                );
                 p.position.copy(pos);
-                const vel = new THREE.Vector3((Math.random()-0.5)*0.5, Math.random()*0.5, (Math.random()-0.5)*0.5);
+                const vel = new THREE.Vector3((Math.random() - 0.5) * 0.5, Math.random() * 0.5, (Math.random() - 0.5) * 0.5);
                 particles.push({ mesh: p, vel: vel, life: 1.0 });
                 scene.add(p);
             }
@@ -333,12 +519,13 @@
             ammo--;
             document.getElementById('ammo-count').innerText = ammo;
             playSound('shoot');
-            recoilX += isZoomed ? 0.02 : 0.08; 
+            recoilX += isZoomed ? 0.02 : 0.08;
+
             raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
             const intersects = raycaster.intersectObjects(targetBottles, true);
             if (intersects.length > 0) {
                 let hit = intersects[0].object;
-                while(hit.parent && !targetBottles.includes(hit)) hit = hit.parent;
+                while (hit.parent && !targetBottles.includes(hit)) hit = hit.parent;
                 const index = targetBottles.indexOf(hit);
                 if (index > -1) {
                     shatter(hit.position, intersects[0].object.material.color);
@@ -350,11 +537,15 @@
             if (ammo === 0) reload();
         }
 
+        // ✅ Reload fonksiyonu + mesajı
         function reload() {
             if (isReloading) return;
+            if (ammo === 5) return; // full ammo -> no reload spam
+
             isReloading = true;
             if (isZoomed) toggleZoom();
             document.getElementById('reload-msg').style.display = 'block';
+
             setTimeout(() => {
                 ammo = 5; isReloading = false;
                 document.getElementById('ammo-count').innerText = ammo;
@@ -381,26 +572,180 @@
         document.body.oncontextmenu = () => false;
 
         document.addEventListener('keydown', (e) => {
-            if (e.code === 'KeyR' && ammo < 5) reload();
+            if (e.code === 'KeyR') reload();
         });
 
         document.getElementById('sens-slider').oninput = (e) => sensitivity = parseFloat(e.target.value);
 
+        // ===== PHONE MODE: touch look + buttons =====
+        let lookPointerId = null;
+        let lastTouchX = 0;
+        let lastTouchY = 0;
+
+        function setPhoneMode(on) {
+            phoneMode = !!on;
+            document.body.classList.toggle('phone-mode', phoneMode);
+
+            if (phoneMode) {
+                if (desktopHelp) desktopHelp.style.display = 'none';
+                if (startHelp) {
+                    startHelp.innerHTML =
+                        'DRAG: AIM / LOOK<br>' +
+                        'ZOOM: Left Button | SHOOT: Right Button | RELOAD: Button';
+                }
+                phoneToggleBtn.textContent = 'PHONE CONTROLS: ON';
+                mobileControls.setAttribute('aria-hidden', 'false');
+                document.getElementById('mobile-reload').setAttribute('aria-hidden', 'false');
+            } else {
+                if (desktopHelp) desktopHelp.style.display = '';
+                if (startHelp) {
+                    startHelp.innerHTML =
+                        '[L-CLICK] FIRE | [R-CLICK] ZOOM | [R] RELOAD<br>' +
+                        '[ESC] UNLOCK MOUSE / PAUSE';
+                }
+                phoneToggleBtn.textContent = 'ENABLE PHONE CONTROLS';
+                mobileControls.setAttribute('aria-hidden', 'true');
+                document.getElementById('mobile-reload').setAttribute('aria-hidden', 'true');
+                rotateHint.style.display = 'none';
+            }
+            updateRotateHint();
+        }
+
+        async function tryFullscreenAndLandscapeLock() {
+            try {
+                if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+                    await document.documentElement.requestFullscreen({ navigationUI: "hide" });
+                }
+            } catch (_) { }
+
+            try {
+                if (screen.orientation && screen.orientation.lock) {
+                    await screen.orientation.lock('landscape');
+                    return true;
+                }
+            } catch (_) { }
+
+            return false;
+        }
+
+        function isPortrait() { return window.innerHeight > window.innerWidth; }
+
+        function updateRotateHint() {
+            if (!phoneMode) { rotateHint.style.display = 'none'; return; }
+            if (!isMobileLike()) { rotateHint.style.display = 'none'; return; }
+            rotateHint.style.display = isPortrait() ? 'flex' : 'none';
+        }
+
+        phoneToggleBtn.addEventListener('click', async () => {
+            setPhoneMode(!phoneMode);
+            if (phoneMode && isMobileLike()) {
+                await tryFullscreenAndLandscapeLock();
+                updateRotateHint();
+            }
+        });
+
+        fullscreenBtn.addEventListener('click', async () => {
+            await tryFullscreenAndLandscapeLock();
+            updateRotateHint();
+        });
+
+        // Touch look on canvas
+        renderer.domElement.addEventListener('pointerdown', (e) => {
+            if (!phoneMode) return;
+            if (e.pointerType !== 'touch' && e.pointerType !== 'pen') return;
+            if (!gameActive || isPaused) return;
+
+            lookPointerId = e.pointerId;
+            lastTouchX = e.clientX;
+            lastTouchY = e.clientY;
+
+            try { renderer.domElement.setPointerCapture(lookPointerId); } catch (_) {}
+            e.preventDefault();
+        }, { passive: false });
+
+        renderer.domElement.addEventListener('pointermove', (e) => {
+            if (!phoneMode) return;
+            if (lookPointerId === null || e.pointerId !== lookPointerId) return;
+            if (!gameActive || isPaused) return;
+
+            const dx = e.clientX - lastTouchX;
+            const dy = e.clientY - lastTouchY;
+            lastTouchX = e.clientX;
+            lastTouchY = e.clientY;
+
+            targetRotationY -= dx * sensitivity;
+            targetRotationX -= dy * sensitivity;
+            targetRotationX = Math.max(-Math.PI / 2.5, Math.min(Math.PI / 2.5, targetRotationX));
+
+            e.preventDefault();
+        }, { passive: false });
+
+        function endLookPointer(e) {
+            if (!phoneMode) return;
+            if (lookPointerId === null) return;
+            if (e.pointerId !== lookPointerId) return;
+            lookPointerId = null;
+            e.preventDefault();
+        }
+        renderer.domElement.addEventListener('pointerup', endLookPointer, { passive: false });
+        renderer.domElement.addEventListener('pointercancel', endLookPointer, { passive: false });
+
+        // Mobile buttons
+        shootBtn.addEventListener('pointerdown', (e) => {
+            if (!phoneMode) return;
+            e.preventDefault();
+            shoot();
+        }, { passive: false });
+
+        zoomBtn.addEventListener('pointerdown', (e) => {
+            if (!phoneMode) return;
+            e.preventDefault();
+            toggleZoom();
+        }, { passive: false });
+
+        // ✅ Mobile reload button
+        reloadBtn.addEventListener('pointerdown', (e) => {
+            if (!phoneMode) return;
+            e.preventDefault();
+            reload();
+        }, { passive: false });
+
+        // Start behavior
+        startBtn.onclick = async () => {
+            gameActive = true;
+            document.getElementById('start-screen').style.display = 'none';
+
+            if (!phoneMode) {
+                requestLock();
+            } else {
+                if (isMobileLike()) {
+                    await tryFullscreenAndLandscapeLock();
+                    updateRotateHint();
+                }
+            }
+            startTimer();
+        };
+
+        // Animate
         function animate() {
             requestAnimationFrame(animate);
             if (!isPaused && gameActive) {
                 recoilX *= 0.88; recoilY *= 0.88;
                 camera.rotation.x = targetRotationX + recoilX;
                 camera.rotation.y = targetRotationY + recoilY;
+
                 if (!isZoomed) {
                     gunGroup.position.copy(camera.position);
                     gunGroup.rotation.copy(camera.rotation);
                     gunGroup.translateX(0.4); gunGroup.translateY(-0.35); gunGroup.translateZ(-0.8);
                 }
+
+                const t = Date.now() * 0.002;
                 targetBottles.forEach((b, i) => {
-                    b.position.y = 0.6 + Math.sin(Date.now() * 0.002 + i) * 0.1;
+                    b.position.y = 0.6 + Math.sin(t + i) * 0.1;
                     b.rotation.y += 0.02;
                 });
+
                 for (let i = particles.length - 1; i >= 0; i--) {
                     const p = particles[i];
                     p.mesh.position.add(p.vel); p.vel.y -= 0.015; p.life -= 0.02;
@@ -410,12 +755,11 @@
             renderer.render(scene, camera);
         }
 
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+        window.addEventListener('resize', scheduleResize, { passive: true });
+        window.addEventListener('orientationchange', scheduleResize, { passive: true });
 
+        applyResize();
+        updateRotateHint();
         animate();
     </script>
 </body>
