@@ -53,8 +53,8 @@ const games = [
     imgLink: "https://i.postimg.cc/J0865rd1/snipe-Bottle.webp"
   },
   {
-    title: "2D Shaking Block",
-    link: "/games//shakingBlock2d.html",
+    title: "2D Hanging Ball",
+    link: "/games//hangingBall2d.html",
     imgLink: "https://i.postimg.cc/xCVfxX7k/shaking-Block.webp"
   },
   {

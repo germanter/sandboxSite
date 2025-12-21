@@ -1,0 +1,1519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>Pendulum Wrecking Ball: Flask Frenzy</title>
+  <style>
+    :root{
+      --panel: rgba(14, 20, 44, 0.72);
+      --panel2: rgba(10, 14, 30, 0.78);
+      --text: #e6e9ff;
+      --accent: #7c8cff;
+      --accent2: #48d5ff;
+      --gold:#ffcc33;
+      --ok:#22c55e;
+
+      /* SAFE AREA helpers */
+      --sat: env(safe-area-inset-top);
+      --sar: env(safe-area-inset-right);
+      --sab: env(safe-area-inset-bottom);
+      --sal: env(safe-area-inset-left);
+    }
+    *{ box-sizing:border-box; }
+    html, body{ height:100%; }
+    body{
+      margin:0;
+      background: radial-gradient(circle at 30% 20%, #0b1b46 0%, #050611 45%, #03040c 100%);
+      font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      overflow:hidden;
+      user-select:none;
+      touch-action:none;
+      color: var(--text);
+    }
+
+    #canvas-wrap{
+      position:relative;
+      width:100%;
+      /* Dynamic viewport units to stop bottom cut on mobile */
+      height: 100vh;
+      height: 100svh;
+      height: 100dvh;
+      overflow:hidden;
+    }
+    canvas{
+      display:block;
+      width:100%;
+      height:100%;
+      touch-action:none;
+    }
+
+    /* --- PAUSE BUTTON (only) --- */
+    #pause-btn{
+      position:absolute;
+      top: calc(clamp(10px, 2.2vw, 16px) + var(--sat));
+      left: calc(clamp(10px, 2.2vw, 16px) + var(--sal));
+      z-index: 30;
+      padding: 9px 14px;
+      border: 1px solid rgba(226,232,240,0.18);
+      border-radius: 12px;
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(8px);
+      color: var(--text);
+      font-weight: 900;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition: transform .12s ease, opacity .12s ease, background .12s ease;
+    }
+    #pause-btn:hover{ transform: translateY(-1px); background: rgba(255,255,255,0.11); }
+    #pause-btn:active{ transform: translateY(0px); opacity: 0.95; }
+    #pause-btn[aria-disabled="true"]{ opacity:0.55; cursor: default; transform:none; }
+
+    /* ====== NEW: PAUSE MENU (Resume/Restart) ====== */
+    #pause-menu{
+      position:absolute;
+      top: calc(clamp(10px, 2.2vw, 16px) + var(--sat) + 50px);
+      left: calc(clamp(10px, 2.2vw, 16px) + var(--sal));
+      z-index: 31;
+      display:none;
+      background: rgba(10, 14, 30, 0.86);
+      border: 1px solid rgba(226,232,240,0.16);
+      border-radius: 14px;
+      padding: 10px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 18px 50px rgba(0,0,0,0.50);
+      gap: 8px;
+      flex-direction: column;
+      min-width: 140px;
+    }
+    .pm-btn{
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid rgba(226,232,240,0.16);
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      font-weight: 950;
+      letter-spacing: 0.02em;
+      cursor: pointer;
+      transition: transform .12s ease, opacity .12s ease, background .12s ease;
+    }
+    .pm-btn:hover{ transform: translateY(-1px); background: rgba(255,255,255,0.11); }
+    .pm-btn:active{ transform: translateY(0px); opacity: 0.96; }
+    #pm-resume{ background: linear-gradient(135deg, rgba(124,140,255,0.85), rgba(72,213,255,0.45)); color:#07112a; }
+    #pm-restart{ background: rgba(244,63,94,0.75); border-color: rgba(244,63,94,0.35); }
+    /* ====== /NEW ====== */
+
+    /* --- LENGTH PANEL (desktop default: top-right horizontal) --- */
+    #len-panel{
+      position:absolute;
+      top: calc(clamp(10px, 2.2vw, 16px) + var(--sat));
+      right: calc(clamp(10px, 2.2vw, 16px) + var(--sar));
+      z-index: 30;
+      width: min(320px, calc(100vw - 24px));
+      background: var(--panel);
+      border: 1px solid rgba(226,232,240,0.16);
+      border-radius: 14px;
+      padding: 10px 12px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.35);
+    }
+    #len-title{
+      display:flex;
+      align-items:baseline;
+      justify-content:space-between;
+      gap: 10px;
+      margin-bottom: 6px;
+    }
+    #len-title .k{
+      font-weight: 950;
+      letter-spacing: 0.08em;
+      font-size: 0.78rem;
+      color: rgba(226,232,240,0.78);
+      text-transform: uppercase;
+    }
+    #len-title .v{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-weight: 950;
+      color: var(--accent2);
+    }
+    #p-L{
+      width: 100%;
+      accent-color: var(--accent2);
+      cursor: pointer;
+    }
+    #len-hint{
+      margin-top: 6px;
+      font-size: 0.78rem;
+      color: rgba(226,232,240,0.62);
+      line-height: 1.2;
+    }
+
+    /* --- Custom vertical slider (mobile) --- */
+    #vlen{
+      display:none;
+      margin-top: 10px;
+      width: 100%;
+      height: 230px;
+      position: relative;
+      touch-action: none;
+    }
+    #vlen .track{
+      position:absolute;
+      left: 50%;
+      top: 8px;
+      transform: translateX(-50%);
+      width: 14px;
+      height: calc(100% - 16px);
+      border-radius: 999px;
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(226,232,240,0.14);
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
+    }
+    #vlen .fill{
+      position:absolute;
+      left: 0;
+      bottom: 0;
+      width: 100%;
+      height: 50%;
+      border-radius: 999px;
+      background: linear-gradient(180deg, rgba(72,213,255,0.35), rgba(124,140,255,0.85));
+    }
+    #vlen .thumb{
+      position:absolute;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 34px;
+      height: 22px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.10);
+      border: 1px solid rgba(226,232,240,0.22);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 12px 30px rgba(0,0,0,0.35);
+    }
+    #vlen .thumb::after{
+      content:"";
+      position:absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%,-50%);
+      width: 14px;
+      height: 3px;
+      border-radius: 999px;
+      background: rgba(72,213,255,0.9);
+      box-shadow: 0 0 12px rgba(72,213,255,0.55);
+    }
+    #vlen .cap{
+      position:absolute;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 0.72rem;
+      color: rgba(226,232,240,0.65);
+      letter-spacing: 0.06em;
+      font-weight: 900;
+      user-select:none;
+      pointer-events:none;
+    }
+    #vlen .cap.top{ top: -2px; }
+    #vlen .cap.bot{ bottom: -2px; }
+
+    /* --- MOBILE/TABLET: vertical length on right side (landscape) --- */
+    body.is-mobile #len-panel{
+      top: 50%;
+      right: calc(clamp(10px, 2.2vw, 16px) + var(--sar));
+      transform: translateY(-50%);
+      width: 92px;
+      padding: 10px 10px;
+      border-radius: 16px;
+
+      /* keep fully visible */
+      max-height: calc(100% - (24px + var(--sat) + var(--sab)));
+      overflow: hidden;
+    }
+    body.is-mobile #len-title{
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      margin: 0 0 2px;
+    }
+    body.is-mobile #len-title .k{ font-size: 0.68rem; opacity: 0.85; }
+    body.is-mobile #len-hint{ display:none; }
+    body.is-mobile #p-L{ display:none; }
+    body.is-mobile #vlen{
+      display:block;
+      /* responsive height so it never clips */
+      height: min(52vh, 320px);
+      margin-top: 8px;
+    }
+
+    /* --- HUD --- */
+    #hud{
+      position:absolute;
+      top: calc(clamp(62px, 8.5vw, 78px) + var(--sat));
+      left: calc(clamp(10px, 2.2vw, 16px) + var(--sal));
+      z-index: 25;
+      background: var(--panel2);
+      border: 1px solid rgba(226,232,240,0.14);
+      border-radius: 16px;
+      padding: 10px 12px;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 16px 40px rgba(0,0,0,0.35);
+      min-width: min(280px, calc(100vw - 24px));
+      pointer-events:none;
+    }
+    .row{
+      display:flex;
+      justify-content:space-between;
+      gap: 14px;
+      line-height: 1.28;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size: 0.93rem;
+    }
+    .row .k{ color: rgba(226,232,240,0.68); }
+    .row .v{ font-weight: 950; color: var(--accent); }
+    .row .v.ok{ color: var(--ok); }
+    .row .v.gold{ color: var(--gold); }
+
+    /* (1) MOBILE HUD SMALLER + fit beside length panel */
+    body.is-mobile #hud{
+      padding: 8px 10px;
+      border-radius: 14px;
+      /* keep away from length panel */
+      max-width: calc(100vw - (92px + 32px + var(--sar) + var(--sal)));
+      min-width: 210px;
+    }
+    body.is-mobile .row{
+      font-size: 0.82rem;
+      gap: 10px;
+    }
+
+    #hint{
+      position:absolute;
+      /* (2) never cut at bottom */
+      bottom: calc(clamp(10px, 2.2vw, 16px) + var(--sab));
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 20;
+      max-width: min(760px, calc(100vw - 24px));
+      text-align:center;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(226,232,240,0.14);
+      backdrop-filter: blur(10px);
+      color: rgba(226,232,240,0.72);
+      font-size: clamp(0.78rem, 2.6vw, 0.92rem);
+      pointer-events:none;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.25);
+    }
+    body.is-mobile #hint{
+      /* slight smaller on mobile */
+      font-size: 0.78rem;
+      padding: 7px 10px;
+      max-width: calc(100vw - 20px);
+    }
+
+    /* --- Game Over Overlay --- */
+    #gameover{
+      position:absolute;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index: 40;
+      background: rgba(0,0,0,0.35);
+      backdrop-filter: blur(6px);
+    }
+    #gameover-card{
+      width: min(520px, calc(100vw - 26px));
+      background: rgba(10, 14, 30, 0.90);
+      border: 1px solid rgba(226,232,240,0.16);
+      border-radius: 18px;
+      padding: 18px 16px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.55);
+      text-align:center;
+    }
+    #gameover-card h2{
+      margin: 0 0 8px;
+      font-size: 1.5rem;
+      letter-spacing: 0.04em;
+    }
+    #gameover-card p{
+      margin: 0 0 14px;
+      color: rgba(226,232,240,0.72);
+      line-height: 1.35;
+    }
+    #again-btn{
+      padding: 10px 14px;
+      border-radius: 12px;
+      border: 1px solid rgba(226,232,240,0.16);
+      background: linear-gradient(135deg, rgba(124,140,255,0.85), rgba(72,213,255,0.55));
+      color: #07112a;
+      font-weight: 950;
+      letter-spacing: 0.04em;
+      cursor: pointer;
+      transition: transform .12s ease, opacity .12s ease;
+    }
+    #again-btn:hover{ transform: translateY(-1px); }
+    #again-btn:active{ transform: translateY(0px); opacity: 0.96; }
+
+    /* --- Rotate overlay (mobile portrait) --- */
+    #rotate-overlay{
+      position:absolute;
+      inset:0;
+      display:none;
+      align-items:center;
+      justify-content:center;
+      z-index: 50;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(8px);
+    }
+    #rotate-card{
+      width: min(520px, calc(100vw - 26px));
+      background: rgba(10, 14, 30, 0.92);
+      border: 1px solid rgba(226,232,240,0.16);
+      border-radius: 18px;
+      padding: 18px 16px;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.55);
+      text-align:center;
+    }
+    #rotate-card h3{
+      margin: 0 0 8px;
+      font-size: 1.25rem;
+      letter-spacing: 0.04em;
+    }
+    #rotate-card p{
+      margin: 0;
+      color: rgba(226,232,240,0.74);
+      line-height: 1.35;
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body>
+  <div id="canvas-wrap">
+    <button id="pause-btn">Pause</button>
+
+    <!-- NEW: Pause menu -->
+    <div id="pause-menu">
+      <button id="pm-resume" class="pm-btn">Resume</button>
+      <button id="pm-restart" class="pm-btn">Restart</button>
+    </div>
+
+    <div id="len-panel">
+      <div id="len-title">
+        <span class="k">Length</span>
+        <span id="len-val" class="v">200</span>
+      </div>
+
+      <!-- desktop slider -->
+      <input type="range" id="p-L" min="50" max="400" value="200">
+      <div id="len-hint">PC: ↑ longer, ↓ shorter (Shift = faster)</div>
+
+      <!-- mobile vertical slider -->
+      <div id="vlen" aria-label="Length slider">
+        <div class="cap top">SHORT</div>
+        <div class="track" id="v-track">
+          <div class="fill" id="v-fill"></div>
+        </div>
+        <div class="thumb" id="v-thumb"></div>
+        <div class="cap bot">LONG</div>
+      </div>
+    </div>
+
+    <div id="hud">
+      <div class="row"><span class="k">Score</span><span id="s-sc" class="v ok">0</span></div>
+      <div class="row"><span class="k">Combo</span><span id="s-co" class="v">x1.00</span></div>
+      <div class="row"><span class="k">Time</span><span id="s-ti" class="v gold">60.0s</span></div>
+      <div class="row"><span class="k">Best</span><span id="s-be" class="v">0</span></div>
+    </div>
+
+    <div id="hint">Drag the wrecking ball. Smash flasks. Golden flasks add time. Portals shuffle reality.</div>
+
+    <div id="gameover">
+      <div id="gameover-card">
+        <h2>Time’s Up</h2>
+        <p id="over-line">Score: 0 • Best: 0</p>
+        <button id="again-btn">Play Again</button>
+      </div>
+    </div>
+
+    <div id="rotate-overlay">
+      <div id="rotate-card">
+        <h3>Rotate to Landscape</h3>
+        <p>Telefon/tablet için en iyi deneyim yatay mod. Tarayıcı desteklerse otomatik kilit denenecek.</p>
+      </div>
+    </div>
+
+    <canvas id="simCanvas"></canvas>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('simCanvas');
+  const ctx = canvas.getContext('2d', { alpha: true });
+  const wrap = document.getElementById('canvas-wrap');
+
+  const pauseBtn = document.getElementById('pause-btn');
+  const lenSlider = document.getElementById('p-L');
+  const lenVal = document.getElementById('len-val');
+
+  const vlen = document.getElementById('vlen');
+  const vTrack = document.getElementById('v-track');
+  const vFill = document.getElementById('v-fill');
+  const vThumb = document.getElementById('v-thumb');
+
+  const hudScore = document.getElementById('s-sc');
+  const hudCombo = document.getElementById('s-co');
+  const hudTime  = document.getElementById('s-ti');
+  const hudBest  = document.getElementById('s-be');
+
+  const hintEl = document.getElementById('hint');
+  const overEl = document.getElementById('gameover');
+  const overLine = document.getElementById('over-line');
+  const againBtn = document.getElementById('again-btn');
+  const rotateOverlay = document.getElementById('rotate-overlay');
+
+  // NEW: Pause menu elements
+  const pauseMenu = document.getElementById('pause-menu');
+  const pmResume = document.getElementById('pm-resume');
+  const pmRestart = document.getElementById('pm-restart');
+
+  // === Virtual Resolution + letterbox ===
+  const VIEW = { baseW: 900, baseH: 600, screenW:0, screenH:0, dpr:1, scale:1, offsetX:0, offsetY:0 };
+
+  // Device/perf detection
+  const isCoarse = matchMedia && matchMedia('(pointer: coarse)').matches;
+  const uaMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);
+  const IS_MOBILE = !!(isCoarse || uaMobile);
+
+  const PERF = {
+    low: IS_MOBILE,
+    dprCap: IS_MOBILE ? 1.5 : 2.5,
+    subSteps: IS_MOBILE ? 2 : 4,
+    trailMax: IS_MOBILE ? 18 : 44,
+    particlesPerSmash: IS_MOBILE ? 12 : 26,
+    maxParticles: IS_MOBILE ? 180 : 360
+  };
+
+  // Simulation/Game State
+  const state = {
+    theta: 0,
+    omega: 0,
+    t: 0,
+    running: false,
+    isDragging: false,
+    trail: [],
+    pivot: { x: VIEW.baseW / 2, y: 110 },
+    pointerId: null,
+    game: {
+      score: 0,
+      best: 0,
+      timeLeft: 60,
+      combo: 0,
+      lastSmashT: -999,
+      bottles: [],
+      particles: [],
+      floats: [],
+      portal: null,
+      spawnTimer: 0,
+      portalTimer: 7,
+      over: false
+    }
+  };
+
+  // Physics constants (unchanged)
+  const LEN_MIN = 50, LEN_MAX = 400;
+  const config = { L: 200, g: 9.8, b: 0.02, bobRadius: 20 };
+
+  // ======= Audio unlock =======
+  let audioCtx = null;
+  let audioUnlocked = false;
+
+  function ensureAudio() {
+    if (audioCtx) return;
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    audioCtx = new Ctx();
+  }
+
+  function unlockAudioAndOrientation() {
+    if (audioUnlocked) return;
+    audioUnlocked = true;
+
+    ensureAudio();
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+
+    if (audioCtx) {
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.02);
+      osc.frequency.setValueAtTime(220, now);
+      osc.connect(g);
+      g.connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.02);
+    }
+
+    if (IS_MOBILE && screen.orientation && screen.orientation.lock) {
+      screen.orientation.lock('landscape').catch(()=>{});
+    }
+  }
+
+  function sfxSmash(intensity = 0.6, isGold = false) {
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+
+    const master = audioCtx.createGain();
+    master.gain.setValueAtTime(0.0001, now);
+    master.gain.exponentialRampToValueAtTime(0.20 + 0.10 * intensity, now + 0.01);
+    master.gain.exponentialRampToValueAtTime(0.0001, now + 0.18);
+    master.connect(audioCtx.destination);
+
+    const bufferSize = Math.floor(audioCtx.sampleRate * 0.07);
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      const t = i / bufferSize;
+      data[i] = (Math.random()*2 - 1) * (1 - t) * (0.55 + 0.45*intensity);
+    }
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = buffer;
+
+    const hp = audioCtx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.setValueAtTime(isGold ? 900 : 650, now);
+
+    const bp = audioCtx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(isGold ? 1900 : 1400, now);
+    bp.Q.setValueAtTime(7.5, now);
+
+    noise.connect(hp);
+    hp.connect(bp);
+    bp.connect(master);
+    noise.start(now);
+
+    const freqs = isGold ? [880, 1320] : [660, 990];
+    freqs.forEach((f, idx) => {
+      const osc = audioCtx.createOscillator();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, now);
+
+      const g = audioCtx.createGain();
+      g.gain.setValueAtTime(0.0001, now);
+      g.gain.exponentialRampToValueAtTime((0.06 + 0.05 * intensity) / (idx + 1), now + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, now + 0.14);
+
+      osc.connect(g);
+      g.connect(master);
+      osc.start(now);
+      osc.stop(now + 0.16);
+    });
+  }
+
+  function sfxPortal() {
+    if (!audioCtx) return;
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    osc.type = 'triangle';
+    const g = audioCtx.createGain();
+    g.gain.setValueAtTime(0.0001, now);
+    g.gain.exponentialRampToValueAtTime(0.10, now + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, now + 0.22);
+    osc.frequency.setValueAtTime(240, now);
+    osc.frequency.exponentialRampToValueAtTime(720, now + 0.20);
+    osc.connect(g);
+    g.connect(audioCtx.destination);
+    osc.start(now);
+    osc.stop(now + 0.24);
+  }
+
+  // ======= Responsive resize (rAF debounce) =======
+  let resizeQueued = false;
+  function requestResize() {
+    if (resizeQueued) return;
+    resizeQueued = true;
+    requestAnimationFrame(() => {
+      resizeQueued = false;
+      applyDeviceMode();
+      resizeNow();
+      buildWorldBackgroundCache();
+      syncLengthUI();
+    });
+  }
+
+  // (IMPORTANT) Use VisualViewport + mobile height lock to stop UI cutting
+  function resizeNow() {
+    if (IS_MOBILE) {
+      const vv = window.visualViewport;
+      const h = Math.floor(vv ? vv.height : window.innerHeight);
+      wrap.style.height = h + 'px';
+    } else {
+      wrap.style.height = '';
+    }
+
+    const w = Math.max(1, wrap.clientWidth);
+    const h = Math.max(1, wrap.clientHeight);
+
+    VIEW.screenW = w;
+    VIEW.screenH = h;
+
+    const rawDpr = window.devicePixelRatio || 1;
+    VIEW.dpr = Math.max(1, Math.min(PERF.dprCap, rawDpr));
+
+    VIEW.scale = Math.min(w / VIEW.baseW, h / VIEW.baseH);
+    VIEW.offsetX = (w - VIEW.baseW * VIEW.scale) / 2;
+    VIEW.offsetY = (h - VIEW.baseH * VIEW.scale) / 2;
+
+    canvas.width = Math.round(w * VIEW.dpr);
+    canvas.height = Math.round(h * VIEW.dpr);
+    canvas.style.width = w + 'px';
+    canvas.style.height = h + 'px';
+
+    ctx.setTransform(VIEW.dpr, 0, 0, VIEW.dpr, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+
+    state.pivot.x = VIEW.baseW / 2;
+  }
+
+  function clamp(v,a,b){ return Math.max(a, Math.min(b, v)); }
+  function rand(a,b){ return a + Math.random()*(b-a); }
+  function setHint(t){ hintEl.textContent = t; }
+
+  function applyDeviceMode() {
+    const portrait = window.innerHeight > window.innerWidth;
+    document.body.classList.toggle('is-mobile', IS_MOBILE);
+
+    if (IS_MOBILE && portrait) {
+      rotateOverlay.style.display = 'flex';
+      if (audioUnlocked && screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(()=>{});
+      }
+    } else {
+      rotateOverlay.style.display = 'none';
+    }
+  }
+
+  function screenToWorld(e) {
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const wx = (sx - VIEW.offsetX) / VIEW.scale;
+    const wy = (sy - VIEW.offsetY) / VIEW.scale;
+    return { x: wx, y: wy, inWorld: (wx>=0 && wx<=VIEW.baseW && wy>=0 && wy<=VIEW.baseH) };
+  }
+
+  function getBobPos() {
+    return {
+      x: state.pivot.x + config.L * Math.sin(state.theta),
+      y: state.pivot.y + config.L * Math.cos(state.theta)
+    };
+  }
+  function bobLinearSpeed(){ return Math.abs(state.omega) * config.L; }
+
+  function loadBest() {
+    try {
+      const v = parseInt(localStorage.getItem('pendulum_flask_best') || '0', 10);
+      state.game.best = isFinite(v) ? v : 0;
+    } catch (_) {}
+  }
+  function saveBest() {
+    try { localStorage.setItem('pendulum_flask_best', String(state.game.best)); } catch (_) {}
+  }
+
+  function resetGame() {
+    state.game.score = 0;
+    state.game.timeLeft = 60;
+    state.game.combo = 0;
+    state.game.lastSmashT = -999;
+    state.game.bottles = [];
+    state.game.particles = [];
+    state.game.floats = [];
+    state.game.portal = null;
+    state.game.spawnTimer = 0.2;
+    state.game.portalTimer = rand(6, 10);
+    state.game.over = false;
+    overEl.style.display = 'none';
+    pauseBtn.setAttribute('aria-disabled','false');
+    pauseBtn.textContent = 'Pause';
+    setHint('Drag the wrecking ball. Smash flasks. Golden flasks add time. Portals shuffle reality.');
+
+    // NEW: make sure hint is visible at start + auto-hide later
+    hintEl.style.display = 'block';
+    scheduleHintAutoHide();
+
+    // NEW: hide pause menu on new game
+    pauseMenu.style.display = 'none';
+  }
+
+  function spawnBottle(type='glass') {
+    const r = (type === 'gold') ? 18 : 16;
+    let x = rand(70, VIEW.baseW - 70);
+    let y = rand(220, VIEW.baseH - 80);
+
+    for (let attempt=0; attempt<7; attempt++){
+      let ok = true;
+      for (const b of state.game.bottles){
+        if (Math.hypot(x-b.x, y-b.y) < (r + b.r + 22)) { ok = false; break; }
+      }
+      if (ok) break;
+      x = rand(70, VIEW.baseW - 70);
+      y = rand(220, VIEW.baseH - 80);
+    }
+
+    state.game.bottles.push({
+      x,y,r,type,
+      broken:false,
+      breakT:0,
+      hitCd:0,
+      wobble: rand(0, Math.PI*2)
+    });
+  }
+
+  function spawnPortal() {
+    state.game.portal = { x: rand(120, VIEW.baseW - 120), y: rand(220, VIEW.baseH - 140), r: 30, t: 0 };
+  }
+
+  function addFloatText(x,y,text,color) {
+    state.game.floats.push({ x,y, vx: rand(-18, 18), vy: rand(-70, -105), life:0, ttl:0.85, text, color });
+  }
+
+  function spawnParticles(x,y,colorA,colorB) {
+    while (state.game.particles.length > PERF.maxParticles) state.game.particles.shift();
+    const n = PERF.particlesPerSmash + Math.floor(rand(0, 6));
+    for (let i=0; i<n; i++){
+      const ang = rand(0, Math.PI*2);
+      const sp = rand(120, 460);
+      state.game.particles.push({
+        x,y,
+        vx: Math.cos(ang)*sp,
+        vy: Math.sin(ang)*sp - rand(90, 190),
+        life:0,
+        ttl: rand(0.25, 0.60),
+        r: rand(1.3, 3.2),
+        c: (Math.random()<0.5 ? colorA : colorB)
+      });
+    }
+  }
+
+  function reshuffleReality(){
+    for (const b of state.game.bottles){
+      if (b.broken) continue;
+      b.x = rand(70, VIEW.baseW - 70);
+      b.y = rand(220, VIEW.baseH - 80);
+      b.wobble = rand(0, Math.PI*2);
+      b.hitCd = 0.15;
+    }
+    state.game.score += 75;
+    addFloatText(VIEW.baseW/2, 170, 'REALITY SHUFFLED +75', '#ffcc33');
+  }
+
+  // Physics (unchanged)
+  function stepPhysics(dt){
+    if (dt > 0.03) dt = 0.03;
+    if (state.isDragging) return;
+
+    const lengthMeters = config.L / 100;
+    const alpha = -(config.g / lengthMeters) * Math.sin(state.theta) - (config.b * state.omega);
+
+    state.omega += alpha * dt;
+    state.theta += state.omega * dt;
+    state.t += dt;
+
+    const bob = getBobPos();
+    state.trail.push(bob);
+    if (state.trail.length > PERF.trailMax) state.trail.shift();
+  }
+
+  function updateEffects(dt){
+    for (let i=state.game.particles.length-1; i>=0; i--){
+      const p = state.game.particles[i];
+      p.life += dt;
+      p.vy += 820 * dt;
+      p.vx *= Math.pow(0.06, dt);
+      p.vy *= Math.pow(0.09, dt);
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      if (p.life >= p.ttl) state.game.particles.splice(i,1);
+    }
+    for (let i=state.game.floats.length-1; i>=0; i--){
+      const f = state.game.floats[i];
+      f.life += dt;
+      f.x += f.vx * dt;
+      f.y += f.vy * dt;
+      f.vy += 140 * dt;
+      if (f.life >= f.ttl) state.game.floats.splice(i,1);
+    }
+    if (state.game.portal){
+      state.game.portal.t += dt;
+      if (state.game.portal.t > 4.2) state.game.portal = null;
+    }
+  }
+
+  function updateGame(dt){
+    if (state.game.over) return;
+
+    state.game.timeLeft -= dt;
+    if (state.game.timeLeft <= 0){
+      state.game.timeLeft = 0;
+      state.game.over = true;
+      state.running = false;
+
+      if (state.game.score > state.game.best){
+        state.game.best = state.game.score;
+        saveBest();
+        addFloatText(VIEW.baseW/2, 190, 'NEW BEST!', '#22c55e');
+      }
+
+      overLine.textContent = `Score: ${state.game.score} • Best: ${state.game.best}`;
+      overEl.style.display = 'flex';
+      pauseBtn.setAttribute('aria-disabled','true');
+
+      // NEW: ensure hint isn't hidden by timer on game over
+      clearTimeout(hintHideTimer);
+      hintEl.style.display = 'block';
+
+      setHint('Game over. Play Again.');
+      return;
+    }
+
+    state.game.spawnTimer -= dt;
+    const maxBottles = 7;
+    if (state.game.spawnTimer <= 0 && state.game.bottles.length < maxBottles){
+      spawnBottle(Math.random() < 0.12 ? 'gold' : 'glass');
+      state.game.spawnTimer = rand(0.58, 1.05);
+    }
+
+    state.game.portalTimer -= dt;
+    if (!state.game.portal && state.game.portalTimer <= 0){
+      spawnPortal();
+      state.game.portalTimer = rand(9, 14);
+    }
+
+    for (let i=state.game.bottles.length-1; i>=0; i--){
+      const b = state.game.bottles[i];
+      b.wobble += dt * (b.type === 'gold' ? 3.8 : 2.8);
+      b.hitCd = Math.max(0, b.hitCd - dt);
+      if (b.broken){
+        b.breakT += dt;
+        if (b.breakT > 0.35) state.game.bottles.splice(i,1);
+      }
+    }
+
+    if (!state.isDragging){
+      const bob = getBobPos();
+      const br = config.bobRadius;
+
+      for (const b of state.game.bottles){
+        if (b.broken || b.hitCd > 0) continue;
+        if (Math.hypot(bob.x-b.x, bob.y-b.y) <= br + b.r){
+          b.broken = true;
+          b.breakT = 0;
+          b.hitCd = 0.25;
+
+          const sp = bobLinearSpeed();
+          const intensity = clamp(sp / 700, 0.2, 1.0);
+
+          const since = state.t - state.game.lastSmashT;
+          if (since <= 1.1) state.game.combo++;
+          else state.game.combo = 0;
+          state.game.lastSmashT = state.t;
+
+          const mult = 1 + state.game.combo * 0.12;
+          let pts = Math.floor((12 + sp / 35) * mult);
+
+          if (b.type === 'gold'){
+            pts += 90;
+            state.game.timeLeft = Math.min(99.9, state.game.timeLeft + 5);
+            addFloatText(b.x, b.y-22, 'GOLD +5s', '#ffcc33');
+          }
+
+          state.game.score += pts;
+          spawnParticles(b.x, b.y, (b.type==='gold')?'#ffd86b':'#66d6ff', (b.type==='gold')?'#ffcc33':'#7c8cff');
+          addFloatText(b.x, b.y-18, `+${pts}`, (b.type==='gold')?'#ffcc33':'#48d5ff');
+
+          if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+          sfxSmash(intensity, b.type==='gold');
+        }
+      }
+
+      if (state.game.portal){
+        const p = state.game.portal;
+        if (Math.hypot(bob.x-p.x, bob.y-p.y) <= br + p.r){
+          if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume().catch(()=>{});
+          sfxPortal();
+          spawnParticles(p.x, p.y, '#66d6ff', '#a78bfa');
+          addFloatText(p.x, p.y-18, 'PORTAL HIT!', '#a78bfa');
+          reshuffleReality();
+          state.game.timeLeft = Math.min(99.9, state.game.timeLeft + 2.0);
+          state.game.portal = null;
+        }
+      }
+    }
+  }
+
+  // Cached world background
+  const bg = { canvas: document.createElement('canvas'), ctx: null, ready: false };
+  bg.ctx = bg.canvas.getContext('2d');
+
+  function buildWorldBackgroundCache(){
+    bg.canvas.width = VIEW.baseW;
+    bg.canvas.height = VIEW.baseH;
+    const bctx = bg.ctx;
+
+    const g = bctx.createLinearGradient(0,0,0,VIEW.baseH);
+    g.addColorStop(0,'#07112a');
+    g.addColorStop(1,'#05081a');
+    bctx.fillStyle = g;
+    bctx.fillRect(0,0,VIEW.baseW,VIEW.baseH);
+
+    bctx.save();
+    bctx.globalAlpha = PERF.low ? 0.12 : 0.18;
+    bctx.strokeStyle = 'rgba(226,232,240,0.18)';
+    bctx.lineWidth = 1;
+    const step = PERF.low ? 54 : 42;
+    for (let x=0; x<=VIEW.baseW; x+=step){
+      bctx.beginPath(); bctx.moveTo(x,0); bctx.lineTo(x,VIEW.baseH); bctx.stroke();
+    }
+    for (let y=0; y<=VIEW.baseH; y+=step){
+      bctx.beginPath(); bctx.moveTo(0,y); bctx.lineTo(VIEW.baseW,y); bctx.stroke();
+    }
+    bctx.restore();
+
+    const starCount = PERF.low ? 45 : 80;
+    for (let i=0; i<starCount; i++){
+      const x = Math.random()*VIEW.baseW;
+      const y = Math.random()*VIEW.baseH;
+      const r = 0.7 + Math.random()*1.8;
+      bctx.globalAlpha = 0.18 + Math.random()*0.22;
+      bctx.fillStyle = (Math.random()<0.5) ? 'rgba(72,213,255,1)' : 'rgba(124,140,255,1)';
+      bctx.beginPath(); bctx.arc(x,y,r,0,Math.PI*2); bctx.fill();
+    }
+    bctx.globalAlpha = 1;
+
+    bctx.save();
+    const glow = bctx.createRadialGradient(VIEW.baseW*0.52, VIEW.baseH*0.46, 10, VIEW.baseW*0.52, VIEW.baseH*0.46, 520);
+    glow.addColorStop(0,'rgba(72,213,255,0.16)');
+    glow.addColorStop(0.35,'rgba(124,140,255,0.10)');
+    glow.addColorStop(1,'rgba(0,0,0,0.0)');
+    bctx.fillStyle = glow;
+    bctx.fillRect(0,0,VIEW.baseW,VIEW.baseH);
+    bctx.restore();
+
+    bctx.save();
+    bctx.strokeStyle = 'rgba(226,232,240,0.22)';
+    bctx.lineWidth = 6;
+    bctx.lineCap = 'round';
+    bctx.beginPath();
+    bctx.moveTo(120,70);
+    bctx.lineTo(VIEW.baseW-120,70);
+    bctx.stroke();
+    bctx.restore();
+
+    bg.ready = true;
+  }
+
+  function beginWorld(){
+    ctx.setTransform(
+      VIEW.dpr * VIEW.scale, 0, 0,
+      VIEW.dpr * VIEW.scale,
+      VIEW.dpr * VIEW.offsetX,
+      VIEW.dpr * VIEW.offsetY
+    );
+  }
+
+  function drawBackgroundScreenSpace(){
+    ctx.setTransform(VIEW.dpr,0,0,VIEW.dpr,0,0);
+    const g = ctx.createLinearGradient(0,0,0,VIEW.screenH);
+    g.addColorStop(0,'#050611');
+    g.addColorStop(1,'#03040c');
+    ctx.fillStyle = g;
+    ctx.fillRect(0,0,VIEW.screenW,VIEW.screenH);
+
+    ctx.globalAlpha = 0.55;
+    const v = ctx.createRadialGradient(
+      VIEW.screenW*0.5, VIEW.screenH*0.45, 10,
+      VIEW.screenW*0.5, VIEW.screenH*0.5, Math.max(VIEW.screenW, VIEW.screenH)*0.75
+    );
+    v.addColorStop(0,'rgba(72,213,255,0.10)');
+    v.addColorStop(0.55,'rgba(124,140,255,0.10)');
+    v.addColorStop(1,'rgba(0,0,0,0.70)');
+    ctx.fillStyle = v;
+    ctx.fillRect(0,0,VIEW.screenW, VIEW.screenH);
+    ctx.globalAlpha = 1;
+  }
+
+  function roundRect(c,x,y,w,h,r){
+    const rr = Math.min(r, w/2, h/2);
+    c.beginPath();
+    c.moveTo(x+rr,y);
+    c.arcTo(x+w,y,x+w,y+h,rr);
+    c.arcTo(x+w,y+h,x,y+h,rr);
+    c.arcTo(x,y+h,x,y,rr);
+    c.arcTo(x,y,x+w,y,rr);
+    c.closePath();
+  }
+
+  function drawBottle(b, bob){
+    const wob = Math.sin(b.wobble) * (b.type==='gold'?0.08:0.06);
+    const rot = wob;
+
+    const dxW = bob.x - b.x;
+    const dyW = bob.y - b.y;
+    const cos = Math.cos(-rot), sin = Math.sin(-rot);
+    const tx = dxW * cos - dyW * sin;
+    const ty = dxW * sin + dyW * cos;
+
+    ctx.save();
+    ctx.translate(b.x,b.y);
+    ctx.rotate(rot);
+
+    const bodyW = b.r*2.25, bodyH = b.r*3.0;
+    const neckW = b.r*1.05, neckH = b.r*1.25;
+
+    ctx.shadowBlur = (b.type==='gold')?22:14;
+    ctx.shadowColor = (b.type==='gold')?'rgba(255,204,51,0.28)':'rgba(72,213,255,0.20)';
+
+    const grad = ctx.createLinearGradient(0,-bodyH*0.6,0,bodyH*0.6);
+    if (b.type==='gold'){ grad.addColorStop(0,'#ffe08a'); grad.addColorStop(1,'#ffcc33'); }
+    else { grad.addColorStop(0,'#9bf0ff'); grad.addColorStop(1,'#7c8cff'); }
+
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = 'rgba(226,232,240,0.20)';
+    ctx.lineWidth = 2;
+
+    roundRect(ctx, -bodyW/2, -bodyH/2+10, bodyW, bodyH, 14);
+    ctx.fill(); ctx.stroke();
+
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255,255,255,0.22)';
+    ctx.strokeStyle = 'rgba(226,232,240,0.16)';
+    roundRect(ctx, -neckW/2, -bodyH/2-neckH+10, neckW, neckH, 9);
+    ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = 'rgba(10,14,30,0.35)';
+    roundRect(ctx, -bodyW*0.28, 6, bodyW*0.56, bodyH*0.22, 10);
+    ctx.fill();
+
+    const eyeY = -bodyH*0.12;
+    const eyeX = bodyW*0.16;
+    const eyeR = 5.2;
+
+    const distToBall = Math.hypot(dxW, dyW);
+    const surprise = clamp(1 - distToBall / 240, 0, 1);
+
+    let vx = tx, vy = ty;
+    const vlen2 = Math.hypot(vx, vy) || 1;
+    vx /= vlen2; vy /= vlen2;
+    const pupilOffset = 2.0 + 2.0*surprise;
+
+    const pupilX = vx * pupilOffset;
+    const pupilY = vy * pupilOffset;
+
+    ctx.fillStyle = 'rgba(255,255,255,0.92)';
+    ctx.strokeStyle = 'rgba(10,14,30,0.25)';
+    ctx.lineWidth = 1.4;
+
+    ctx.beginPath();
+    ctx.arc(-eyeX, eyeY, eyeR + 1.1*surprise, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(+eyeX, eyeY, eyeR + 1.1*surprise, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+
+    ctx.fillStyle = 'rgba(10,14,30,0.72)';
+    const pr = 2.4 + 0.9*surprise;
+
+    ctx.beginPath();
+    ctx.arc(-eyeX + pupilX, eyeY + pupilY, pr, 0, Math.PI*2);
+    ctx.arc(+eyeX + pupilX, eyeY + pupilY, pr, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255,255,255,0.75)';
+    ctx.beginPath();
+    ctx.arc(-eyeX + pupilX - 0.8, eyeY + pupilY - 0.9, 0.9, 0, Math.PI*2);
+    ctx.arc(+eyeX + pupilX - 0.8, eyeY + pupilY - 0.9, 0.9, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(10,14,30,0.40)';
+    ctx.lineWidth = 2.0;
+    ctx.fillStyle = 'rgba(10,14,30,0.28)';
+    const mouthY = 7 + 2*surprise;
+    const mw = 10 + 6*surprise;
+    const mh = 6 + 10*surprise;
+
+    ctx.beginPath();
+    ctx.ellipse(0, mouthY, mw*0.35, mh*0.35, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.35;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.beginPath();
+    ctx.arc(-bodyW*0.18, -bodyH*0.12, 5.2, 0, Math.PI*2);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+
+    ctx.restore();
+  }
+
+  function drawPortal(p){
+    const t = p.t;
+    ctx.save();
+    ctx.translate(p.x,p.y);
+
+    const ring = ctx.createRadialGradient(0,0,3,0,0,p.r*1.32);
+    ring.addColorStop(0,'rgba(167,139,250,0.0)');
+    ring.addColorStop(0.55,'rgba(72,213,255,0.22)');
+    ring.addColorStop(1,'rgba(124,140,255,0.42)');
+    ctx.fillStyle = ring;
+    ctx.beginPath(); ctx.arc(0,0,p.r*1.32,0,Math.PI*2); ctx.fill();
+
+    ctx.lineWidth = 2.4;
+    ctx.strokeStyle = 'rgba(72,213,255,0.65)';
+    ctx.beginPath();
+    for (let i=0;i<48;i++){
+      const a = (i/48)*Math.PI*2 + t*2.6;
+      const rr = p.r*(0.55 + 0.45*Math.sin(a*1.5 + t));
+      const x = Math.cos(a)*rr, y = Math.sin(a)*rr;
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.closePath(); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawParticles(){
+    ctx.save();
+    for (const p of state.game.particles){
+      const a = 1 - (p.life/p.ttl);
+      ctx.globalAlpha = a;
+      ctx.fillStyle = p.c;
+      ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function drawFloats(){
+    ctx.save();
+    ctx.textAlign = 'center';
+    for (const f of state.game.floats){
+      const a = 1 - (f.life/f.ttl);
+      ctx.globalAlpha = a;
+      ctx.font = '900 18px system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif';
+      ctx.fillStyle = f.color;
+      ctx.fillText(f.text, f.x, f.y);
+      ctx.globalAlpha = 1;
+    }
+    ctx.restore();
+  }
+
+  function drawPendulum(){
+    const bob = getBobPos();
+
+    if (state.trail.length > 1){
+      ctx.save();
+      ctx.beginPath();
+      ctx.lineWidth = 3.2;
+      for (let i=0;i<state.trail.length;i++){
+        const ratio = i/state.trail.length;
+        ctx.strokeStyle = `rgba(72,213,255,${ratio*0.24})`;
+        const p = state.trail[i];
+        if (i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.save();
+    const segs = 12;
+    ctx.lineWidth = state.isDragging ? 3 : 2;
+    ctx.strokeStyle = state.isDragging ? 'rgba(72,213,255,0.85)' : 'rgba(226,232,240,0.50)';
+    ctx.beginPath();
+    for (let i=0;i<=segs;i++){
+      const a = i/segs;
+      const x = state.pivot.x + (bob.x-state.pivot.x)*a;
+      const y = state.pivot.y + (bob.y-state.pivot.y)*a + Math.sin((a*segs + state.t*10)*0.35)*(state.isDragging?0.9:0.35);
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    const speed = bobLinearSpeed();
+    const glow = clamp(speed/650,0,1);
+
+    const grad = ctx.createRadialGradient(bob.x-7,bob.y-7,2,bob.x,bob.y,config.bobRadius*1.35);
+    grad.addColorStop(0,'#e6f6ff');
+    grad.addColorStop(0.45,'#7c8cff');
+    grad.addColorStop(1,'#1e2b7a');
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(bob.x,bob.y,config.bobRadius,0,Math.PI*2);
+    ctx.fillStyle = grad;
+    ctx.shadowBlur = 14 + 18*glow;
+    ctx.shadowColor = 'rgba(72,213,255,0.25)';
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.restore();
+  }
+
+  function draw(){
+    drawBackgroundScreenSpace();
+    beginWorld();
+
+    if (bg.ready) ctx.drawImage(bg.canvas, 0, 0);
+
+    const bob = getBobPos();
+    for (const b of state.game.bottles) if (!b.broken) drawBottle(b, bob);
+    if (state.game.portal) drawPortal(state.game.portal);
+
+    drawParticles();
+    drawPendulum();
+    drawFloats();
+  }
+
+  // ======= HUD + Length UI sync =======
+  function updateHUD(){
+    hudScore.textContent = String(state.game.score);
+    hudBest.textContent = String(state.game.best);
+    hudTime.textContent = state.game.timeLeft.toFixed(1) + 's';
+    const mult = 1 + state.game.combo*0.12;
+    hudCombo.textContent = 'x' + mult.toFixed(2);
+    lenVal.textContent = String(Math.round(config.L));
+  }
+
+  function lengthToNorm(L){
+    return clamp((L - LEN_MIN) / (LEN_MAX - LEN_MIN), 0, 1);
+  }
+  function normToLength(norm){
+    return LEN_MIN + norm * (LEN_MAX - LEN_MIN);
+  }
+
+  function syncLengthUI(){
+    lenSlider.value = String(Math.round(config.L));
+
+    const norm = lengthToNorm(config.L);
+    const trackRect = vTrack.getBoundingClientRect();
+    const h = Math.max(1, trackRect.height);
+
+    vThumb.style.top = (8 + norm * (h)) + "px";
+    vFill.style.height = (norm * 100) + "%";
+  }
+
+  function setLength(L){
+    config.L = clamp(L, LEN_MIN, LEN_MAX);
+    updateHUD();
+    syncLengthUI();
+  }
+
+  // ======= Mobile vertical slider controls =======
+  let vDrag = false;
+  function vPointerToNorm(e){
+    const tr = vTrack.getBoundingClientRect();
+    const y = clamp(e.clientY - tr.top, 0, tr.height);
+    return y / Math.max(1, tr.height);
+  }
+
+  function onVDown(e){
+    unlockAudioAndOrientation();
+    vDrag = true;
+    try { vlen.setPointerCapture(e.pointerId); } catch(_){}
+    setLength(normToLength(vPointerToNorm(e)));
+    e.preventDefault();
+  }
+  function onVMove(e){
+    if (!vDrag) return;
+    setLength(normToLength(vPointerToNorm(e)));
+    e.preventDefault();
+  }
+  function onVUp(){
+    if (!vDrag) return;
+    vDrag = false;
+    try { vlen.releasePointerCapture?.(event.pointerId); } catch(_){}
+  }
+
+  // ======= Desktop slider + keyboard =======
+  function onKeyDown(e){
+    if (IS_MOBILE) return;
+    const tag = (document.activeElement && document.activeElement.tagName) ? document.activeElement.tagName.toLowerCase() : '';
+    if (tag === 'input' || tag === 'textarea') return;
+
+    if (e.key === 'ArrowUp' || e.key === 'ArrowDown'){
+      unlockAudioAndOrientation();
+      const step = e.shiftKey ? 20 : 5;
+      if (e.key === 'ArrowUp') setLength(config.L + step);
+      else setLength(config.L - step);
+      e.preventDefault();
+    }
+  }
+
+  // ======= Input for dragging ball =======
+  function onPointerDown(e){
+    unlockAudioAndOrientation();
+
+    const p = screenToWorld(e);
+    const bob = getBobPos();
+    const dist = Math.hypot(p.x-bob.x, p.y-bob.y);
+
+    if (dist < config.bobRadius*1.6){
+      state.isDragging = true;
+      state.omega = 0;
+      state.pointerId = e.pointerId;
+      try { canvas.setPointerCapture(e.pointerId); } catch(_){}
+      e.preventDefault();
+    }
+  }
+
+  function onPointerMove(e){
+    if (!state.isDragging) return;
+    const p = screenToWorld(e);
+    const dx = p.x - state.pivot.x;
+    const dy = p.y - state.pivot.y;
+    state.theta = Math.atan2(dx, dy);
+    state.omega = 0;
+    e.preventDefault();
+  }
+
+  function onPointerUp(e){
+    if (!state.isDragging) return;
+    state.isDragging = false;
+    state.pointerId = null;
+    try { canvas.releasePointerCapture(e.pointerId); } catch(_){}
+  }
+
+  // ======= NEW: Hint auto-hide 3-4 seconds after start =======
+  let hintHideTimer = null;
+  function scheduleHintAutoHide(){
+    clearTimeout(hintHideTimer);
+    hintHideTimer = setTimeout(() => {
+      hintEl.style.display = 'none';
+    }, 3500);
+  }
+
+  // ======= NEW: Pause menu behavior =======
+  function onPauseClick(){
+    if (pauseBtn.getAttribute('aria-disabled') === 'true') return;
+    unlockAudioAndOrientation();
+
+    // Toggle menu
+    if (pauseMenu.style.display === 'flex'){
+      pauseMenu.style.display = 'none';
+      return;
+    }
+
+    state.running = false;
+    pauseMenu.style.display = 'flex';
+  }
+  function resumeFromMenu(){
+    if (state.game.over) return;
+    pauseMenu.style.display = 'none';
+    state.running = true;
+  }
+  function restartFromMenu(){
+    pauseMenu.style.display = 'none';
+    resetSim();
+  }
+
+  function resetSim(){
+    state.theta = 45 * (Math.PI/180);
+    state.omega = 0;
+    state.t = 0;
+    state.trail = [];
+    state.isDragging = false;
+
+    resetGame();
+    state.running = true;
+    pauseBtn.textContent = 'Pause';
+    updateHUD();
+    syncLengthUI();
+  }
+
+  // ======= Main loop =======
+  let lastT = 0;
+  function loop(ts){
+    if (!lastT) lastT = ts;
+    let dt = (ts - lastT)/1000;
+    lastT = ts;
+    dt = clamp(dt, 0, 0.05);
+
+    if (state.running || state.isDragging){
+      const steps = PERF.subSteps;
+      for (let i=0;i<steps;i++) stepPhysics(dt/steps);
+    }
+
+    if (state.running) updateGame(dt);
+    updateEffects(Math.min(dt, 0.016));
+
+    updateHUD();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  function init(){
+    loadBest();
+
+    // unlock audio on ANY first interaction
+    wrap.addEventListener('pointerdown', unlockAudioAndOrientation, { passive: true });
+    wrap.addEventListener('touchstart', unlockAudioAndOrientation, { passive: true });
+
+    // responsive
+    window.addEventListener('resize', requestResize, { passive: true });
+    window.addEventListener('orientationchange', requestResize, { passive: true });
+
+    // VisualViewport helps mobile UI bars
+    if (window.visualViewport) {
+      window.visualViewport.addEventListener('resize', requestResize, { passive: true });
+      window.visualViewport.addEventListener('scroll', requestResize, { passive: true });
+    }
+
+    requestResize();
+
+    // ball input
+    canvas.addEventListener('pointerdown', onPointerDown, { passive: false });
+    window.addEventListener('pointermove', onPointerMove, { passive: false });
+    window.addEventListener('pointerup', onPointerUp, { passive: true });
+    window.addEventListener('pointercancel', onPointerUp, { passive: true });
+
+    // NEW: pause opens menu
+    pauseBtn.addEventListener('click', onPauseClick);
+    pmResume.addEventListener('click', resumeFromMenu);
+    pmRestart.addEventListener('click', restartFromMenu);
+
+    // desktop slider
+    lenSlider.addEventListener('input', (e) => {
+      unlockAudioAndOrientation();
+      setLength(parseFloat(e.target.value));
+    });
+
+    // mobile vertical slider
+    vlen.addEventListener('pointerdown', onVDown, { passive: false });
+    vlen.addEventListener('pointermove', onVMove, { passive: false });
+    vlen.addEventListener('pointerup', onVUp, { passive: true });
+    vlen.addEventListener('pointercancel', onVUp, { passive: true });
+
+    // keyboard
+    window.addEventListener('keydown', onKeyDown, { passive: false });
+
+    // play again
+    againBtn.addEventListener('click', () => {
+      unlockAudioAndOrientation();
+      resetSim();
+    });
+
+    applyDeviceMode();
+    setLength(config.L);
+    resetSim();
+    requestAnimationFrame(loop);
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
