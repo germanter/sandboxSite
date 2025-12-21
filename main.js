@@ -55,7 +55,7 @@ const games = [
   {
     title: "2D Hanging Ball",
     link: "/games//hangingBall2d.html",
-    imgLink: "https://i.postimg.cc/xCVfxX7k/shaking-Block.webp"
+    imgLink: "https://i.postimg.cc/pVCYdZVs/hanging-Ball.webp"
   },
   {
     title: "3D Neon Race",
