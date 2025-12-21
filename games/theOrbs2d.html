@@ -34,18 +34,20 @@
         }
         #controls {
             position: absolute;
-            bottom: 30px;
+            bottom: 50px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
             gap: 20px;
             pointer-events: auto;
-        }
+		flex-wrap: wrap; /* Küçük ekranlarda butonlar alt alta gelebilir */
+    	justify-content: center;
+        };
         button {
             background: rgba(0, 255, 204, 0.1);
             border: 1px solid #00ffcc;
             color: #00ffcc;
-            padding: 10px 30px;
+            padding: 12px 20px;
             font-family: inherit;
             font-weight: bold;
             font-size: 16px;
@@ -463,15 +465,30 @@
         loop();
     }
 
-    function createTargets() {
-        targets = [];
-        for (let i = 0; i < 4; i++) {
-            targets.push(new Target(
-                Math.random() * (width - 200) + 100,
-                Math.random() * (height * 0.4) + 60
-            ));
-        }
+// createTargets fonksiyonunu bununla değiştir/güncelle
+function createTargets() {
+    targets = [];
+    const isMobile = width < height; // Ekran dikey mi?
+    
+    for (let i = 0; i < 4; i++) {
+        // Yatayda ekranın çok kenarına gitmemeleri için %20 margin bırakıyoruz
+        let marginX = width * 0.2;
+        let spawnWidth = width - (marginX * 2);
+        
+        // Dikeyde füze rampasıyla aralarında mesafe kalması için 
+        // ekranın sadece üst %30'luk kısmında doğmalarını sağlıyoruz
+        let spawnHeight = isMobile ? height * 0.3 : height * 0.4;
+
+        targets.push(new Target(
+            Math.random() * spawnWidth + marginX,
+            Math.random() * spawnHeight + 80 // En üstten 80px aşağıda
+        ));
     }
+}
+
+// Target sınıfındaki update metodunda ekran dışına çıkma kontrolünü sıkılaştıralım
+// Bu kısım mevcut Target class içindeki update metoduna dahil edilebilir
+// Mevcut kodu değiştirmeden sadece "width - 50" olan yerleri dinamik yapıyoruz.
 
     function showStatus(text, color) {
         statusMsg.innerText = text;
@@ -481,10 +498,16 @@
         setTimeout(() => statusMsg.style.opacity = 0, 1500);
     }
 
-    function resize() {
-        width = canvas.width = window.innerWidth;
-        height = canvas.height = window.innerHeight;
-    }
+function resize() {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+    
+    // Ekran boyutu değiştiğinde hedefleri ekran içine geri çek
+    targets.forEach(t => {
+        if (t.pos.x > width) t.pos.x = width - 50;
+        if (t.pos.y > height) t.pos.y = height * 0.3;
+    });
+}
 
     function drawEnvironment() {
         // Grid
