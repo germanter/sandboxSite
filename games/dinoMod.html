@@ -299,6 +299,26 @@
         }
     });
 
+        document.addEventListener('pointerdown', (e) => {
+        const modMenu = document.getElementById('mod-menu');
+
+        // Eğer mod menünün içindeysek dokunma
+        if (modMenu.contains(e.target)) return;
+
+        if (!gameActive) {
+            score = 0;
+            obstacles = [];
+            clouds = [];
+            gameActive = true;
+            dino.y = 0;
+            frameCount = 0;
+            nextObstacleFrame = 100;
+            nextCloudFrame = 0;
+        } else {
+            dino.jump();
+        }
+    });
+
     const updateSetting = (id, key, isFloat = false) => {
         document.getElementById(id).addEventListener('input', e => {
             settings[key] = isFloat ? parseFloat(e.target.value) : parseInt(e.target.value);
