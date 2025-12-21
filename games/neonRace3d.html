@@ -1,249 +1,697 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="robots" content="noindex,nofollow">
-    <title>GARY RIDER: ULTRA-NEON</title>
-    <style>
-        body { margin: 0; overflow: hidden; background: #0b0014; font-family: 'Arial Black', sans-serif; }
-        #ui {
-            position: absolute; top: 30px; left: 30px; color: #fff;
-            text-shadow: 0 0 10px #0ff, 0 0 20px #0ff; user-select: none; pointer-events: none;
-        }
-        #score { font-size: 80px; line-height: 0.8em; margin-bottom: 10px; font-style: italic; }
-        #speedo { font-size: 20px; color: #ff00ff; text-shadow: 0 0 10px #ff00ff; }
-        #msg { font-size: 16px; margin-top: 10px; color: #fff; opacity: 0.8; letter-spacing: 2px; }
-        
-        #game-over {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-            background: rgba(0,0,0,0.9); color: #fff; padding: 60px;
-            text-align: center; display: none; border: 4px solid #ff00ff;
-            box-shadow: 0 0 100px #ff00ff; border-radius: 40px; z-index: 100;
-        }
-        button {
-            padding: 20px 50px; font-size: 24px; background: #0ff; color: #000;
-            border: none; cursor: pointer; border-radius: 10px; font-weight: 900;
-            margin-top: 30px; box-shadow: 0 0 20px #0ff; transition: 0.2s;
-        }
-        button:hover { transform: scale(1.1); background: #fff; }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="robots" content="noindex,nofollow">
+  <title>GARY RIDER: ULTRA-NEON</title>
+  <style>
+    body { margin: 0; overflow: hidden; background: #140022; font-family: 'Arial Black', sans-serif; }
+    canvas { touch-action: none; display:block; }
+
+    #ui{
+      position:absolute;
+      top: clamp(14px, 3vw, 30px);
+      left: clamp(14px, 3vw, 30px);
+      color:#fff;
+      text-shadow: 0 0 10px #0ff, 0 0 20px #0ff;
+      user-select:none;
+      pointer-events:none;
+    }
+    #score{
+      font-size: clamp(44px, 8vw, 80px);
+      line-height: 0.85em;
+      margin-bottom: 10px;
+      font-style: italic;
+    }
+    #speedo{
+      font-size: clamp(14px, 2.6vw, 20px);
+      color:#ff00ff;
+      text-shadow: 0 0 10px #ff00ff;
+    }
+
+    /* ADDED: BEST UI (minimal) */
+    #bestline{
+      margin-top: 8px;
+      font-size: clamp(12px, 2.2vw, 16px);
+      color:#00ffff;
+      text-shadow: 0 0 10px #00ffff;
+      opacity: 0.95;
+      letter-spacing: 1px;
+    }
+
+    #msg{
+      font-size: clamp(12px, 2.2vw, 16px);
+      margin-top: 10px;
+      color:#fff;
+      opacity:0.8;
+      letter-spacing:2px;
+    }
+
+    #game-over{
+      position:absolute;
+      top:50%; left:50%;
+      transform: translate(-50%, -50%);
+      width: min(86vw, 560px);
+      background: rgba(0,0,0,0.9);
+      color:#fff;
+      padding: clamp(24px, 6vw, 60px);
+      text-align:center;
+      display:none;
+      border: 4px solid #ff00ff;
+      box-shadow: 0 0 100px #ff00ff;
+      border-radius: clamp(20px, 5vw, 40px);
+      z-index:100;
+    }
+    #game-over h1{
+      color:#ff00ff;
+      font-size: clamp(40px, 10vw, 60px);
+      margin: 0;
+    }
+    #final-score{
+      font-size: clamp(16px, 4.5vw, 24px);
+      color:#0ff;
+      margin-top: 18px;
+    }
+    button{
+      padding: clamp(14px, 3.6vw, 20px) clamp(28px, 8vw, 50px);
+      font-size: clamp(18px, 4.8vw, 24px);
+      background:#0ff;
+      color:#000;
+      border:none;
+      cursor:pointer;
+      border-radius: 12px;
+      font-weight: 900;
+      margin-top: 24px;
+      box-shadow: 0 0 20px #0ff;
+      transition: 0.2s;
+    }
+    button:hover { transform: scale(1.05); background:#fff; }
+  </style>
 </head>
 <body>
 
-    <div id="ui">
-        <div id="score">0</div>
-        <div id="speedo">NEON DRIVE: <span id="speed-val">0</span>%</div>
-        <div id="msg"></div>
+  <div id="ui">
+    <div id="score">0</div>
+    <div id="speedo">SPEED: <span id="speed-val">0</span>km/h</div>
+
+    <!-- ADDED: BEST SCORE + MAX SPEED (for that best run) -->
+    <div id="bestline">
+      BEST: <span id="best-score">0</span> —
+      MAX SPEED: <span id="best-speed">0</span>km/h
     </div>
 
-    <div id="game-over">
-        <h1 style="color: #ff00ff; font-size: 60px; margin: 0;">WASTED</h1>
-        <p id="final-score" style="font-size: 24px; color: #0ff;"></p>
-        <button onclick="location.reload()">TRY AGAIN</button>
-    </div>
+    <div id="msg"></div>
+  </div>
 
-    <script type="importmap">
-        { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
-    </script>
+  <div id="game-over">
+    <h1>WASTED</h1>
+    <p id="final-score"></p>
+    <button onclick="location.reload()">TRY AGAIN</button>
+  </div>
 
-    <script type="module">
-        import * as THREE from 'three';
+  <script type="importmap">
+    { "imports": { "three": "https://unpkg.com/three@0.160.0/build/three.module.js" } }
+  </script>
 
-        // --- SETUP ---
-        let speed = 0.7;
-        let score = 0;
-        let isGameOver = false;
-        let obstacleTimer = 0; // Timer to prevent "walls" of cars
-        const obstacles = [];
-        const scenery = [];
+  <script type="module">
+    import * as THREE from 'three';
 
-        const scene = new THREE.Scene();
-        // Slightly lightened background/fog for better visibility
-        scene.background = new THREE.Color(0x0a0012);
-        scene.fog = new THREE.Fog(0x0a0012, 20, 120);
+    // =========================
+    // TUNING (YOUR FINAL VALUES)
+    // =========================
+    const TUNE = {
+      baseSpeed: 0.60,
+      speedGainPerStep: 0.00025,
+      scoreMul: 4.2,
+      obstacleMin: 0.85,
+      obstacleRand: 0.70,
+      buildingMin: 0.18,
+      buildingRand: 0.14
+    };
 
-        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-        const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.toneMapping = THREE.ReinhardToneMapping;
-        document.body.appendChild(renderer.domElement);
+    // =========================
+    // PERFORMANCE / STABILITY
+    // =========================
+    const FIXED_STEP = 1 / 60;         // stable game step
+    const MAX_SUBSTEPS = 6;            // spiral-of-death protection
+    const MAX_RENDER_PIXELS = 1_800_000; // adaptive resolution cap (~1.8MP)
 
-        // --- LIGHTING (Enhanced Brightness) ---
-        const pLight = new THREE.PointLight(0x00ffff, 15, 60);
-        pLight.position.set(0, 8, -5);
-        scene.add(pLight);
-        
-        // Boosted ambient light for overall brightness
-        scene.add(new THREE.AmbientLight(0xff00ff, 0.6));
-        
-        // Added a directional light to help define shapes
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
-        dirLight.position.set(0, 10, 5);
-        scene.add(dirLight);
+    function computeAdaptivePixelRatio(w, h) {
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      const pixels = w * h * dpr * dpr;
+      if (pixels <= MAX_RENDER_PIXELS) return dpr;
+      return Math.sqrt(MAX_RENDER_PIXELS / (w * h));
+    }
 
-        // --- THE RETRO SUN ---
-        const sunGeo = new THREE.CircleGeometry(40, 32);
-        const sunMat = new THREE.MeshBasicMaterial({ color: 0xff0080 });
-        const sun = new THREE.Mesh(sunGeo, sunMat);
-        sun.position.set(0, 10, -110);
-        scene.add(sun);
+    function lerpAlphaPerFrame(alpha60, dt) {
+      const frames = dt * 60;
+      return 1 - Math.pow(1 - alpha60, frames);
+    }
 
-        // --- ROAD WITH REFLECTIONS ---
-        const roadGeo = new THREE.PlaneGeometry(14, 2000);
-        const roadMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1, metalness: 0.8 });
-        const road = new THREE.Mesh(roadGeo, roadMat);
-        road.rotation.x = -Math.PI / 2;
-        scene.add(road);
+    // --- SETUP ---
+    let speed = TUNE.baseSpeed;
+    let score = 0;
+    let scoreFloat = 0;
+    let isGameOver = false;
 
-        const grid = new THREE.GridHelper(1000, 60, 0xff00ff, 0x440044);
-        grid.position.y = 0.05;
-        scene.add(grid);
+    let obstacleCooldown = 0;  // seconds
+    let buildingCooldown = 0;  // seconds
+    const obstacles = [];
+    const scenery = [];
 
-        // --- GARY'S UPGRADED MOWER ---
-        const mower = new THREE.Group();
-        const mowerBody = new THREE.Mesh(
-            new THREE.BoxGeometry(1.5, 0.7, 2.5),
-            new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 0.4 })
-        );
-        mowerBody.position.y = 0.5;
-        mower.add(mowerBody);
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x140022);
+    scene.fog = new THREE.Fog(0x140022, 18, 125);
 
-        // Neon Underglow
-        const glow = new THREE.PointLight(0x00ffff, 8, 12);
-        glow.position.set(0, 0.1, 0);
-        mower.add(glow);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 
-        // Wheels with Neon Rims
-        const wheelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.5, 16);
-        const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0x00ffff, emissiveIntensity: 0.8 });
-        [[-0.8,0.4,1], [0.8,0.4,1], [-0.8,0.4,-1], [0.8,0.4,-1]].forEach(p => {
-            const w = new THREE.Mesh(wheelGeo, wheelMat);
-            w.rotation.z = Math.PI/2;
-            w.position.set(p[0], p[1], p[2]);
-            mower.add(w);
-        });
+    const renderer = new THREE.WebGLRenderer({
+      antialias: true,
+      powerPreference: "high-performance"
+    });
+    renderer.toneMapping = THREE.ReinhardToneMapping;
+    renderer.toneMappingExposure = 1.25;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    document.body.appendChild(renderer.domElement);
 
-        scene.add(mower);
-        mower.position.z = -5;
+    // Responsive camera params
+    let camY = 4.0;
+    let camZ = 5.0;
 
-        // --- SCENERY: BUILDINGS WITH WINDOWS ---
-        function createBuilding() {
-            const h = 15 + Math.random() * 25;
-            const w = 5 + Math.random() * 5;
-            const group = new THREE.Group();
-            
-            const core = new THREE.Mesh(
-                new THREE.BoxGeometry(w, h, w),
-                new THREE.MeshStandardMaterial({ color: 0x050505 })
-            );
-            group.add(core);
+    function applyResponsive() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const aspect = w / h;
 
-            for(let i = 0; i < 5; i++) {
-                const win = new THREE.Mesh(
-                    new THREE.PlaneGeometry(w + 0.1, 0.5),
-                    new THREE.MeshBasicMaterial({ color: Math.random() > 0.5 ? 0x00ffff : 0xff00ff })
-                );
-                win.position.set(0, (Math.random()-0.5) * h, w/2 + 0.01);
-                group.add(win);
-            }
+      const isCoarse = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+      const isMobileLike = isCoarse || Math.min(w, h) < 768;
 
-            const isLeft = Math.random() > 0.5;
-            group.position.set(isLeft ? -18 - Math.random()*10 : 18 + Math.random()*10, h/2, -150);
-            scene.add(group);
-            scenery.push(group);
+      if (aspect < 0.78) {            // portrait phone
+        camera.fov = 88;
+        camY = 4.6;
+        camZ = 6.6;
+      } else if (aspect < 1.15) {     // tablet / square
+        camera.fov = 80;
+        camY = 4.3;
+        camZ = 5.9;
+      } else {                        // pc / landscape
+        camera.fov = 72;
+        camY = 4.0;
+        camZ = 5.2;
+      }
+
+      document.getElementById('msg').textContent = isMobileLike ? "" : "A/D or ARROWS";
+      camera.updateProjectionMatrix();
+    }
+
+    function resizeRenderer() {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const pr = computeAdaptivePixelRatio(w, h);
+      renderer.setPixelRatio(pr);
+      renderer.setSize(w, h);
+      camera.aspect = w / h;
+      camera.updateProjectionMatrix();
+    }
+
+    // --- LIGHTING ---
+    const pLight = new THREE.PointLight(0x00ffff, 22, 70);
+    pLight.position.set(0, 8, -5);
+    scene.add(pLight);
+
+    scene.add(new THREE.AmbientLight(0xff00ff, 0.9));
+
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
+    dirLight.position.set(0, 10, 5);
+    scene.add(dirLight);
+
+    // --- MOON TEXTURE ---
+    function makeMoonTexture(size = 512) {
+      const c = document.createElement('canvas');
+      c.width = c.height = size;
+      const ctx = c.getContext('2d');
+
+      const base = ctx.createRadialGradient(
+        size * 0.35, size * 0.35, size * 0.08,
+        size * 0.52, size * 0.52, size * 0.55
+      );
+      base.addColorStop(0.00, '#f6f7fb');
+      base.addColorStop(0.55, '#cfd2d9');
+      base.addColorStop(1.00, '#8b8f99');
+      ctx.fillStyle = base;
+      ctx.fillRect(0, 0, size, size);
+
+      const img = ctx.getImageData(0, 0, size, size);
+      const d = img.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const n = (Math.random() - 0.5) * 18;
+        d[i] = Math.min(255, Math.max(0, d[i] + n));
+        d[i + 1] = Math.min(255, Math.max(0, d[i + 1] + n));
+        d[i + 2] = Math.min(255, Math.max(0, d[i + 2] + n));
+      }
+      ctx.putImageData(img, 0, 0);
+
+      for (let i = 0; i < 190; i++) {
+        const r = 2 + Math.random() * 18;
+        const x = r + Math.random() * (size - 2 * r);
+        const y = r + Math.random() * (size - 2 * r);
+        const depth = 0.12 + Math.random() * 0.28;
+
+        const ox = r * 0.25;
+        const oy = r * 0.25;
+
+        ctx.beginPath();
+        ctx.arc(x + ox, y + oy, r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(40, 45, 55, ${depth})`;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(x - ox, y - oy, r * 0.92, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, ${depth * 0.55})`;
+        ctx.fill();
+
+        ctx.beginPath();
+        ctx.arc(x, y, r * 0.9, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(25, 28, 35, ${depth * 0.45})`;
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      const vign = ctx.createRadialGradient(
+        size * 0.5, size * 0.5, size * 0.12,
+        size * 0.5, size * 0.5, size * 0.56
+      );
+      vign.addColorStop(0.0, 'rgba(0,0,0,0)');
+      vign.addColorStop(0.75, 'rgba(0,0,0,0)');
+      vign.addColorStop(1.0, 'rgba(0,0,0,0.55)');
+      ctx.fillStyle = vign;
+      ctx.fillRect(0, 0, size, size);
+
+      const term = ctx.createLinearGradient(size * 0.10, 0, size * 0.95, 0);
+      term.addColorStop(0.00, 'rgba(0,0,0,0.55)');
+      term.addColorStop(0.45, 'rgba(0,0,0,0.10)');
+      term.addColorStop(1.00, 'rgba(0,0,0,0.00)');
+      ctx.fillStyle = term;
+      ctx.fillRect(0, 0, size, size);
+
+      const tex = new THREE.CanvasTexture(c);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      tex.anisotropy = renderer.capabilities.getMaxAnisotropy?.() || 1;
+      tex.needsUpdate = true;
+      return tex;
+    }
+
+    const moonGeo = new THREE.CircleGeometry(40, 64);
+    const moonMat = new THREE.MeshBasicMaterial({ map: makeMoonTexture(512), side: THREE.DoubleSide });
+    const moon = new THREE.Mesh(moonGeo, moonMat);
+    moon.position.set(0, 10, -110);
+    scene.add(moon);
+
+    // --- ROAD ---
+    const roadGeo = new THREE.PlaneGeometry(14, 2000);
+    const roadMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1, metalness: 0.8 });
+    const road = new THREE.Mesh(roadGeo, roadMat);
+    road.rotation.x = -Math.PI / 2;
+    scene.add(road);
+
+    const grid = new THREE.GridHelper(1000, 60, 0xff00ff, 0x440044);
+    grid.position.y = 0.05;
+    scene.add(grid);
+
+    // --- MOWER ---
+    const mower = new THREE.Group();
+    const mowerBody = new THREE.Mesh(
+      new THREE.BoxGeometry(1.5, 0.7, 2.5),
+      new THREE.MeshStandardMaterial({ color: 0x00ff00, emissive: 0x00ff00, emissiveIntensity: 0.4 })
+    );
+    mowerBody.position.y = 0.5;
+    mower.add(mowerBody);
+
+    const glow = new THREE.PointLight(0x00ffff, 8, 12);
+    glow.position.set(0, 0.1, 0);
+    mower.add(glow);
+
+    const wheelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.5, 16);
+    const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0x00ffff, emissiveIntensity: 0.8 });
+    [[-0.8,0.4,1],[0.8,0.4,1],[-0.8,0.4,-1],[0.8,0.4,-1]].forEach(p => {
+      const w = new THREE.Mesh(wheelGeo, wheelMat);
+      w.rotation.z = Math.PI/2;
+      w.position.set(p[0], p[1], p[2]);
+      mower.add(w);
+    });
+
+    scene.add(mower);
+    mower.position.z = -5;
+
+    // --- COLLIDERS ---
+    const MOWER_HX = 1.10;
+    const MOWER_HZ = 1.30;
+    const OBS_HX   = 1.15;
+    const OBS_HZ   = 2.35;
+    const HIT_SHRINK = 0.98;
+
+    function segmentIntersectsAABB(x0, z0, x1, z1, hx, hz) {
+      let t0 = 0, t1 = 1;
+      const dx = x1 - x0;
+      const dz = z1 - z0;
+
+      function clip(p, q) {
+        if (p === 0) return q >= 0;
+        const r = q / p;
+        if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r; }
+        else       { if (r < t0) return false; if (r < t1) t1 = r; }
+        return true;
+      }
+
+      if (!clip(-dx, x0 + hx)) return false;
+      if (!clip( dx, hx - x0)) return false;
+      if (!clip(-dz, z0 + hz)) return false;
+      if (!clip( dz, hz - z0)) return false;
+
+      return true;
+    }
+
+    // --- SCENERY (shared geo/mat) ---
+    const buildingCoreGeo = new THREE.BoxGeometry(1, 1, 1);
+    const buildingCoreMat = new THREE.MeshStandardMaterial({ color: 0x050505 });
+
+    const winGeo = new THREE.PlaneGeometry(1, 1);
+    const winMatCyan = new THREE.MeshBasicMaterial({ color: 0x00ffff });
+    const winMatMag  = new THREE.MeshBasicMaterial({ color: 0xff00ff });
+
+    const MAX_SCENERY = 70;
+
+    function createBuilding() {
+      const h = 15 + Math.random() * 25;
+      const w = 5 + Math.random() * 5;
+      const group = new THREE.Group();
+
+      const core = new THREE.Mesh(buildingCoreGeo, buildingCoreMat);
+      core.scale.set(w, h, w);
+      group.add(core);
+
+      for (let i = 0; i < 5; i++) {
+        const win = new THREE.Mesh(winGeo, (Math.random() > 0.5 ? winMatCyan : winMatMag));
+        win.scale.set(w + 0.1, 0.5, 1);
+        win.position.set(0, (Math.random() - 0.5) * h, (w/2) + 0.01);
+        group.add(win);
+      }
+
+      const isLeft = Math.random() > 0.5;
+      group.position.set(isLeft ? -18 - Math.random()*10 : 18 + Math.random()*10, h/2, -150);
+
+      scene.add(group);
+      scenery.push(group);
+
+      if (scenery.length > MAX_SCENERY) {
+        const old = scenery.shift();
+        scene.remove(old);
+      }
+    }
+
+    // --- OBSTACLES (shared geo/mat) ---
+    const obsGeo = new THREE.BoxGeometry(2.5, 1.2, 5);
+    const obsMat = new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xff0055, emissiveIntensity: 2.5 });
+    const MAX_OBS = 30;
+
+    function spawnObstacle() {
+      const obs = new THREE.Mesh(obsGeo, obsMat);
+      obs.position.set((Math.random() - 0.5) * 10, 0.6, -120);
+      obs.userData.prevZ = obs.position.z;
+      scene.add(obs);
+      obstacles.push(obs);
+
+      if (obstacles.length > MAX_OBS) {
+        const old = obstacles.shift();
+        scene.remove(old);
+      }
+    }
+
+    // --- INPUTS ---
+    const keys = {};
+    window.addEventListener('keydown', (e) => { keys[e.key.toLowerCase()] = true; }, { passive:true });
+    window.addEventListener('keyup',   (e) => { keys[e.key.toLowerCase()] = false; }, { passive:true });
+
+    let pointerDown = false;
+    let targetX = mower.position.x;
+    const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+
+    function clientXToWorldX(clientX) {
+      const nx = (clientX / window.innerWidth) * 2 - 1;
+      return clamp(nx * 5.0, -5, 5);
+    }
+
+    const dom = renderer.domElement;
+    dom.style.touchAction = 'none';
+
+    dom.addEventListener('pointerdown', (e) => {
+      if (isGameOver) return;
+      pointerDown = true;
+      targetX = clientXToWorldX(e.clientX);
+      try { dom.setPointerCapture(e.pointerId); } catch {}
+      e.preventDefault();
+    }, { passive:false });
+
+    dom.addEventListener('pointermove', (e) => {
+      if (!pointerDown || isGameOver) return;
+      targetX = clientXToWorldX(e.clientX);
+      e.preventDefault();
+    }, { passive:false });
+
+    dom.addEventListener('pointerup', (e) => {
+      pointerDown = false;
+      try { dom.releasePointerCapture(e.pointerId); } catch {}
+      e.preventDefault();
+    }, { passive:false });
+
+    dom.addEventListener('pointercancel', () => { pointerDown = false; }, { passive:true });
+
+    // --- UI (score instant, speed throttled) ---
+    const scoreEl = document.getElementById('score');
+    const speedEl = document.getElementById('speed-val');
+
+    let lastScoreShown = -1;
+    let lastSpeedShown = -1;
+    let speedUiTimer = 0;
+
+    // =========================
+    // ADDED: BEST SCORE + MAX SPEED (for that best run)
+    // =========================
+    const bestScoreEl = document.getElementById('best-score');
+    const bestSpeedEl = document.getElementById('best-speed');
+
+    const LS_BEST_SCORE = 'garyrider_bestScore';
+    const LS_BEST_SPEED = 'garyrider_bestMaxSpeed';
+
+    let bestScore = 0;
+    let bestMaxSpeedKmh = 0;
+
+    // max speed during current run
+    let runMaxSpeedKmh = Math.floor(speed * 100);
+
+    function loadBest() {
+      try {
+        const bs = parseInt(localStorage.getItem(LS_BEST_SCORE) || '0', 10);
+        const bm = parseInt(localStorage.getItem(LS_BEST_SPEED) || '0', 10);
+        bestScore = Number.isFinite(bs) ? bs : 0;
+        bestMaxSpeedKmh = Number.isFinite(bm) ? bm : 0;
+      } catch {
+        bestScore = 0;
+        bestMaxSpeedKmh = 0;
+      }
+      bestScoreEl.textContent = String(bestScore);
+      bestSpeedEl.textContent = String(bestMaxSpeedKmh);
+    }
+
+    function saveBest() {
+      try {
+        localStorage.setItem(LS_BEST_SCORE, String(bestScore));
+        localStorage.setItem(LS_BEST_SPEED, String(bestMaxSpeedKmh));
+      } catch {}
+      bestScoreEl.textContent = String(bestScore);
+      bestSpeedEl.textContent = String(bestMaxSpeedKmh);
+    }
+
+    loadBest();
+
+    // =========================
+    // GAME UPDATE / RENDER
+    // =========================
+    function update(dt) {
+      if (isGameOver) return;
+
+      // progression (fixed-step)
+      speed += TUNE.speedGainPerStep;
+
+      scoreFloat += (speed * TUNE.scoreMul);
+      score = Math.floor(scoreFloat);
+
+      // Track max speed for this run
+      const currentKmh = Math.floor(speed * 100);
+      if (currentKmh > runMaxSpeedKmh) runMaxSpeedKmh = currentKmh;
+
+      // SCORE: instant (only when changed)
+      if (score !== lastScoreShown) {
+        lastScoreShown = score;
+        scoreEl.textContent = String(score);
+      }
+
+      // SPEED: throttled (≈14.3Hz)
+      speedUiTimer += dt;
+      if (speedUiTimer >= 0.07) {
+        speedUiTimer = 0;
+        if (currentKmh !== lastSpeedShown) {
+          lastSpeedShown = currentKmh;
+          speedEl.textContent = String(currentKmh);
+        }
+      }
+
+      const prevMowerX = mower.position.x;
+
+      // Movement
+      if (!pointerDown) {
+        const step = 0.22;
+        if ((keys['a'] || keys['arrowleft']) && mower.position.x > -5) mower.position.x -= step;
+        if ((keys['d'] || keys['arrowright']) && mower.position.x <  5) mower.position.x += step;
+        targetX = mower.position.x;
+      } else {
+        const a = lerpAlphaPerFrame(0.28, dt);
+        mower.position.x = THREE.MathUtils.lerp(mower.position.x, targetX, a);
+      }
+
+      // Tilt
+      const steer = clamp((targetX - mower.position.x) * 0.35, -0.15, 0.15);
+      const rotA = lerpAlphaPerFrame(0.12, dt);
+      mower.rotation.z = THREE.MathUtils.lerp(mower.rotation.z, steer, rotA);
+
+      // Road scroll
+      grid.position.z += (speed * 2);
+      if (grid.position.z > 20) grid.position.z = 0;
+
+      // Scenery spawn (time-based)
+      buildingCooldown -= dt;
+      if (buildingCooldown <= 0) {
+        createBuilding();
+        buildingCooldown = TUNE.buildingMin + Math.random() * TUNE.buildingRand;
+      }
+
+      for (let i = scenery.length - 1; i >= 0; i--) {
+        const s = scenery[i];
+        s.position.z += (speed * 2.5);
+        if (s.position.z > 50) {
+          scene.remove(s);
+          scenery.splice(i, 1);
+        }
+      }
+
+      // Obstacles spawn (time-based)
+      obstacleCooldown -= dt;
+      if (obstacleCooldown <= 0) {
+        spawnObstacle();
+        obstacleCooldown = TUNE.obstacleMin + Math.random() * TUNE.obstacleRand;
+      }
+
+      // Collision (swept)
+      const mowerZ = mower.position.z;
+      const hx = (MOWER_HX + OBS_HX) * HIT_SHRINK;
+      const hz = (MOWER_HZ + OBS_HZ) * HIT_SHRINK;
+
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        const o = obstacles[i];
+
+        const z0 = (o.userData.prevZ ?? o.position.z);
+        o.position.z += (speed * 0.9);
+        const z1 = o.position.z;
+
+        const mx0 = prevMowerX;
+        const mx1 = mower.position.x;
+
+        const xRel0 = o.position.x - mx0;
+        const zRel0 = z0 - mowerZ;
+        const xRel1 = o.position.x - mx1;
+        const zRel1 = z1 - mowerZ;
+
+        if (segmentIntersectsAABB(xRel0, zRel0, xRel1, zRel1, hx, hz)) {
+          endGame();
+          return;
         }
 
-        // --- OBSTACLES (Cyber Cars) ---
-        function spawnObstacle() {
-            const obs = new THREE.Mesh(
-                new THREE.BoxGeometry(2.5, 1.2, 5),
-                new THREE.MeshStandardMaterial({ color: 0x111111, emissive: 0xff0055, emissiveIntensity: 2.5 })
-            );
-            // Limit spawn range slightly to ensure cars are always on or near the road
-            obs.position.set((Math.random()-0.5)*10, 0.6, -120);
-            scene.add(obs);
-            obstacles.push(obs);
+        o.userData.prevZ = z1;
+
+        if (o.position.z > 10) {
+          scene.remove(o);
+          obstacles.splice(i, 1);
         }
+      }
+    }
 
-        // --- INPUTS ---
-        const keys = {};
-        window.onkeydown = (e) => keys[e.key.toLowerCase()] = true;
-        window.onkeyup = (e) => keys[e.key.toLowerCase()] = false;
+    function render(tsSec) {
+      camera.position.set(0, camY, camZ);
+      camera.lookAt(mower.position.x * 0.4, 1, -10);
+      camera.position.y += Math.sin(tsSec * 5.0) * 0.05;
+      renderer.render(scene, camera);
+    }
 
-        // --- MAIN LOOP ---
-        function animate() {
-            if (isGameOver) return;
+    function endGame() {
+      if (isGameOver) return;
+      isGameOver = true;
 
-            speed += 0.00015; // Slowed acceleration slightly for better control
-            score += Math.floor(speed * 5);
-            document.getElementById('score').innerText = score;
-            document.getElementById('speed-val').innerText = Math.floor(speed * 100);
+      // ADDED: update BEST at game over
+      if (score > bestScore) {
+        bestScore = score;
+        bestMaxSpeedKmh = runMaxSpeedKmh; // max speed reached in the run that set the best score
+        saveBest();
+      }
 
-            // Movement
-            if ((keys['a'] || keys['arrowleft']) && mower.position.x > -5) mower.position.x -= 0.22;
-            if ((keys['d'] || keys['arrowright']) && mower.position.x < 5) mower.position.x += 0.22;
-            
-            mower.rotation.z = THREE.MathUtils.lerp(mower.rotation.z, (keys['a']?-0.15:(keys['d']?0.15:0)), 0.1);
+      document.getElementById('game-over').style.display = 'block';
+      document.getElementById('final-score').innerText = "SCORE: " + score;
+    }
 
-            // Infinite Road movement
-            grid.position.z += speed * 2;
-            if(grid.position.z > 20) grid.position.z = 0;
+    // =========================
+    // FIXED-STEP LOOP
+    // =========================
+    let lastTs = 0;
+    let acc = 0;
 
-            // Scenery logic
-            if(Math.random() < 0.1) createBuilding();
-            scenery.forEach((s, i) => {
-                s.position.z += speed * 2.5;
-                if(s.position.z > 50) { scene.remove(s); scenery.splice(i, 1); }
-            });
+    function loop(ts) {
+      if (isGameOver) return;
 
-            // OBSTACLE SPAWN LOGIC (FIXED)
-            // cooldown prevents cars from spawning at the exact same Z-depth
-            obstacleTimer--; 
-            if(obstacleTimer <= 0) {
-                if(Math.random() < 0.05) { 
-                    spawnObstacle();
-                    // This creates a guaranteed gap of at least 35 frames between car spawns
-                    obstacleTimer = 35; 
-                }
-            }
+      if (!lastTs) lastTs = ts;
+      let dt = (ts - lastTs) / 1000;
+      lastTs = ts;
 
-            obstacles.forEach((o, i) => {
-                o.position.z += speed * 0.9;
-                
-                // Collision Detection
-                const dx = Math.abs(o.position.x - mower.position.x);
-                const dz = Math.abs(o.position.z - mower.position.z);
-                // Box collision check (width 1.5 + 2.5 = 4 / 2 = 2.0 margin)
-                if(dx < 1.8 && dz < 3.2) endGame();
+      dt = Math.min(dt, 0.05);
+      acc += dt;
 
-                if(o.position.z > 10) { scene.remove(o); obstacles.splice(i, 1); }
-            });
+      let sub = 0;
+      while (acc >= FIXED_STEP && sub < MAX_SUBSTEPS) {
+        update(FIXED_STEP);
+        acc -= FIXED_STEP;
+        sub++;
+      }
+      if (sub === MAX_SUBSTEPS) acc = 0;
 
-            // Camera follow with slight bounce
-            camera.position.set(0, 4, 5);
-            camera.lookAt(mower.position.x * 0.4, 1, -10);
-            camera.position.y += Math.sin(Date.now()*0.005) * 0.05;
+      render(ts / 1000);
+      requestAnimationFrame(loop);
+    }
 
-            renderer.render(scene, camera);
-            requestAnimationFrame(animate);
-        }
+    function onResize() {
+      applyResponsive();
+      resizeRenderer();
+    }
 
-        function endGame() {
-            isGameOver = true;
-            document.getElementById('game-over').style.display = 'block';
-            document.getElementById('final-score').innerText = "SCORE: " + score;
-        }
+    window.addEventListener('resize', onResize, { passive:true });
+    window.addEventListener('orientationchange', onResize, { passive:true });
 
-        window.addEventListener('resize', () => {
-            camera.aspect = window.innerWidth / window.innerHeight;
-            camera.updateProjectionMatrix();
-            renderer.setSize(window.innerWidth, window.innerHeight);
-        });
+    // init
+    applyResponsive();
+    resizeRenderer();
 
-        animate();
-    </script>
+    obstacleCooldown = TUNE.obstacleMin;   // start quickly but controlled
+    buildingCooldown = TUNE.buildingMin;
+
+    requestAnimationFrame(loop);
+  </script>
 </body>
 </html>
-
-```
