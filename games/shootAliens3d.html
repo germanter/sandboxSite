@@ -18,8 +18,14 @@
       background: #87CEEB;
       font-family: 'Titan One', cursive;
       user-select: none;
+      touch-action: none;
     }
-    canvas { display: block; }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      touch-action: none;
+    }
 
     #hud {
       position: fixed;
@@ -123,6 +129,70 @@
       transform: translateY(calc(5px * var(--ui)));
       box-shadow: 0 calc(5px * var(--ui)) 0 #2e7d32;
     }
+
+    /* ---------- Mobile/Tablet FIRE Button ---------- */
+    #mobile-controls {
+      position: fixed;
+      right: calc(26px * var(--ui));
+      bottom: calc(26px * var(--ui));
+      z-index: 50;
+      pointer-events: auto;
+      display: none;
+    }
+    #fire-btn {
+      background: #ff1744;
+      color: #fff;
+      border: calc(6px * var(--ui)) solid #fff;
+      font-size: calc(28px * var(--ui));
+      font-family: 'Titan One', cursive;
+      padding: calc(18px * var(--ui)) calc(28px * var(--ui));
+      border-radius: calc(999px * var(--ui));
+      cursor: pointer;
+      box-shadow: 0 calc(10px * var(--ui)) 0 rgba(0,0,0,0.25);
+      transform: translateY(0);
+      transition: 0.06s;
+      touch-action: none;
+    }
+    #fire-btn:active {
+      transform: translateY(calc(5px * var(--ui)));
+      box-shadow: 0 calc(5px * var(--ui)) 0 rgba(0,0,0,0.25);
+    }
+
+    /* ---------- Rotate overlay (if landscape lock fails) ---------- */
+    #rotate-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.72);
+      display: none;
+      z-index: 200;
+      color: #fff;
+      text-align: center;
+      padding: calc(24px * var(--ui));
+      box-sizing: border-box;
+      pointer-events: auto;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Titan One', cursive;
+    }
+    #rotate-overlay .card {
+      max-width: 520px;
+      background: rgba(255,255,255,0.08);
+      border: 2px solid rgba(255,255,255,0.25);
+      border-radius: 18px;
+      padding: calc(22px * var(--ui));
+      box-shadow: 0 calc(18px * var(--ui)) calc(50px * var(--ui)) rgba(0,0,0,0.45);
+    }
+    #rotate-overlay .big {
+      font-size: calc(40px * var(--ui));
+      line-height: 1.05;
+      margin: 0;
+    }
+    #rotate-overlay .small {
+      font-family: 'Short Stack', cursive;
+      font-size: calc(18px * var(--ui));
+      margin-top: calc(10px * var(--ui));
+      opacity: 0.9;
+    }
   </style>
 </head>
 
@@ -136,6 +206,19 @@
   </div>
 
   <div id="crosshair"></div>
+
+  <!-- Mobile FIRE button -->
+  <div id="mobile-controls">
+    <button id="fire-btn" aria-label="Fire">FIRE</button>
+  </div>
+
+  <!-- Rotate helper overlay -->
+  <div id="rotate-overlay">
+    <div class="card">
+      <p class="big">ROTATE YOUR DEVICE</p>
+      <p class="small">This game is best in landscape. If auto-rotate fails, rotate manually.</p>
+    </div>
+  </div>
 
   <div id="overlay">
     <h1>PLASTIC<br/>PANIC!</h1>
@@ -174,14 +257,36 @@
 
     const ballMsgs = ["YES", "NO", "TRY AGAIN", "BONK IT", "AIM BETTER", "UNCERTAIN", "DEFINITELY", "SOON"];
 
-    // ✅ UI sabitleme: clamp yok, tam ters ölçek
+    // ---------- Device mode ----------
+    const isCoarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    const isMobileLike = isCoarsePointer || isTouch;
+
+    const elMobileControls = document.getElementById('mobile-controls');
+    const elFireBtn = document.getElementById('fire-btn');
+    const elRotateOverlay = document.getElementById('rotate-overlay');
+
+    // ---------- UI scale ----------
+    // baseDPR is for anti-zoom; sizeScale is for responsiveness (window size)
+    const UI_BASE_W = 960;
+    const UI_BASE_H = 540;
+
     let baseDPR = window.devicePixelRatio || 1;
     let lastDPR = baseDPR;
 
     function applyUiScale() {
       const dpr = window.devicePixelRatio || 1;
-      const uiScale = baseDPR / dpr; // ters ölçek
+
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+
+      const sizeScale = Math.min(1, Math.min(w / UI_BASE_W, h / UI_BASE_H));
+      const safeMin = 0.65; // keep readable on small screens; DOES NOT break zoom compensation
+      const clampedSizeScale = Math.max(safeMin, sizeScale);
+
+      const uiScale = clampedSizeScale * (baseDPR / dpr);
       document.documentElement.style.setProperty('--ui', uiScale.toFixed(6));
+
       lastDPR = dpr;
     }
 
@@ -190,6 +295,90 @@
       if (Math.abs(dpr - lastDPR) > 1e-6) applyUiScale();
     }
 
+    // ---------- Best-effort landscape lock ----------
+    function isPortraitNow() { return window.innerHeight > window.innerWidth; }
+
+    async function requestLandscapeIfMobile() {
+      if (!isMobileLike) return;
+
+      // Best-effort fullscreen first (some browsers require it for orientation lock)
+      try {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+        }
+      } catch(_) {}
+
+      // Then try orientation lock
+      try {
+        if (screen.orientation && screen.orientation.lock) {
+          await screen.orientation.lock('landscape');
+        }
+      } catch(_) {}
+    }
+
+    function updateRotateOverlay() {
+      // Show only on mobile/tablet AND game is active AND still portrait
+      const show = isMobileLike && gameActive && isPortraitNow();
+      elRotateOverlay.style.display = show ? 'flex' : 'none';
+    }
+
+    // ---------- Mobile aiming (drag to look) ----------
+    let lookPointerId = null;
+    let lastX = 0, lastY = 0;
+    let yaw = 0, pitch = 0;
+    const LOOK_SENS = 0.0032; // only for touch look; does not affect desktop pointer lock
+
+    function applyCameraRotation() {
+      camera.rotation.order = 'YXZ';
+      camera.rotation.y = yaw;
+      camera.rotation.x = pitch;
+    }
+
+    function onLookDown(e) {
+      if (!isMobileLike) return;
+      if (!gameActive) return;
+      if (e.target && e.target.closest && e.target.closest('#mobile-controls')) return;
+      if (e.target && e.target.closest && e.target.closest('#overlay')) return;
+
+      e.preventDefault();
+
+      lookPointerId = e.pointerId;
+      lastX = e.clientX;
+      lastY = e.clientY;
+
+      // sync from current camera state
+      camera.rotation.order = 'YXZ';
+      yaw = camera.rotation.y;
+      pitch = camera.rotation.x;
+    }
+
+    function onLookMove(e) {
+      if (!isMobileLike) return;
+      if (!gameActive) return;
+      if (lookPointerId !== e.pointerId) return;
+
+      e.preventDefault();
+
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+
+      yaw -= dx * LOOK_SENS;
+      pitch -= dy * LOOK_SENS;
+      pitch = Math.max(-1.25, Math.min(1.25, pitch));
+
+      applyCameraRotation();
+    }
+
+    function onLookUp(e) {
+      if (!isMobileLike) return;
+      if (lookPointerId !== e.pointerId) return;
+      e.preventDefault();
+      lookPointerId = null;
+    }
+
+    // --- INIT ---
     function init() {
       scene = new THREE.Scene();
       scene.background = new THREE.Color(0x87CEEB);
@@ -201,6 +390,9 @@
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       renderer.setSize(window.innerWidth, window.innerHeight, true);
       document.body.appendChild(renderer.domElement);
+
+      // Ensure canvas doesn't scroll/zoom on touch
+      renderer.domElement.style.touchAction = 'none';
 
       controls = new PointerLockControls(camera, document.body);
       clock = new THREE.Clock();
@@ -254,12 +446,43 @@
       camera.add(blaster);
       scene.add(camera);
 
+      // UI / start
       document.getElementById('start-btn').onclick = startGame;
-      window.onmousedown = shoot;
 
-      // ✅ UI + resize
-      window.addEventListener('resize', () => { resize(); applyUiScale(); });
-      window.addEventListener('orientationchange', () => { resize(); applyUiScale(); });
+      // Desktop: click/mousedown shoots
+      if (!isMobileLike) {
+        window.addEventListener('mousedown', () => shoot());
+      }
+
+      // Mobile: FIRE button shoots
+      if (isMobileLike) {
+        elMobileControls.style.display = 'block';
+        elFireBtn.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          shoot();
+        }, { passive: false });
+      }
+
+      // Mobile aiming: drag on canvas
+      renderer.domElement.addEventListener('pointerdown', onLookDown, { passive: false });
+      renderer.domElement.addEventListener('pointermove', onLookMove, { passive: false });
+      renderer.domElement.addEventListener('pointerup', onLookUp, { passive: false });
+      renderer.domElement.addEventListener('pointercancel', onLookUp, { passive: false });
+
+      // ✅ Resize (rAF debounce)
+      let resizeQueued = false;
+      const requestResize = () => {
+        if (resizeQueued) return;
+        resizeQueued = true;
+        requestAnimationFrame(() => {
+          resizeQueued = false;
+          resize();
+          applyUiScale();
+          updateRotateOverlay();
+        });
+      };
+      window.addEventListener('resize', requestResize);
+      window.addEventListener('orientationchange', requestResize);
 
       applyUiScale();
       resize();
@@ -320,8 +543,8 @@
       targets.push(group);
     }
 
-    function startGame() {
-      if (audioCtx.state === 'suspended') audioCtx.resume();
+    async function startGame() {
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
 
       score = 0;
       timeLeft = 30;
@@ -331,7 +554,21 @@
       document.getElementById('timer').innerText = timeLeft;
 
       document.getElementById('overlay').style.display = 'none';
-      controls.lock();
+
+      // Mobile/tablet: best-effort landscape + rotate overlay if still portrait
+      if (isMobileLike) {
+        requestLandscapeIfMobile().finally(() => {
+          updateRotateOverlay();
+        });
+      }
+
+      // Desktop: pointer lock
+      if (!isMobileLike) {
+        controls.lock();
+      } else {
+        // On mobile we aim by dragging; ensure camera rotation order is stable
+        camera.rotation.order = 'YXZ';
+      }
 
       targets.forEach(t => scene.remove(t));
       targets = [];
@@ -346,10 +583,16 @@
         if(gameActive) document.getElementById('eight-ball-msg').innerText =
           ballMsgs[Math.floor(Math.random()*ballMsgs.length)];
       }, 3000);
+
+      applyUiScale();
+      updateRotateOverlay();
     }
 
     function shoot() {
-      if(!controls.isLocked || !gameActive) return;
+      if(!gameActive) return;
+      if(!isMobileLike && !controls.isLocked) return;
+
+      if (audioCtx.state === 'suspended') audioCtx.resume();
 
       playToySound(300, 'square', 0.1);
       blaster.position.z += 0.2;
@@ -415,7 +658,7 @@
     function animate() {
       requestAnimationFrame(animate);
 
-      // ✅ zoom/scale değişimi olursa UI sabit kalsın
+      // ✅ zoom/scale değişimi olursa UI sabit + responsive kalsın
       maybeUpdateUiScale();
 
       // ✅ canvas ölçü değişimi
@@ -467,7 +710,9 @@
 
     function endGame() {
       gameActive = false;
-      controls.unlock();
+      updateRotateOverlay();
+
+      if (!isMobileLike) controls.unlock();
 
       const over = document.getElementById('overlay');
       over.style.display = 'flex';

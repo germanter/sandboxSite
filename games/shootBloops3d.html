@@ -21,8 +21,16 @@
 
       /* ✅ biraz daha canlı/parlak görünüm */
       filter: saturate(1.12) contrast(1.06);
+
+      /* ✅ mobilde scroll/pinch-zoom engeli */
+      touch-action: none;
     }
-    canvas { display: block; }
+    canvas {
+      display: block;
+      width: 100vw;
+      height: 100vh;
+      touch-action: none;
+    }
 
     /* Underwater Wavy Effect */
     #screen-wave {
@@ -132,6 +140,72 @@
       transform: translateY(calc(5px * var(--ui)));
       box-shadow: 0 calc(5px * var(--ui)) 0 #a52a2a;
     }
+
+    /* ---------- Mobile/Tablet FIRE Button ---------- */
+    #mobile-controls {
+      position: fixed;
+      right: calc(22px * var(--ui));
+      bottom: calc(22px * var(--ui));
+      z-index: 60;
+      pointer-events: auto;
+      display: none;
+    }
+    #fire-btn {
+      background: #00ffff;
+      color: #002233;
+      border: calc(6px * var(--ui)) solid #fff;
+      font-size: calc(26px * var(--ui));
+      font-family: 'Slackey', cursive;
+      padding: calc(18px * var(--ui)) calc(26px * var(--ui));
+      border-radius: calc(999px * var(--ui));
+      cursor: pointer;
+      box-shadow: 0 calc(10px * var(--ui)) 0 rgba(0,0,0,0.25);
+      transform: translateY(0);
+      transition: 0.06s;
+      touch-action: none;
+    }
+    #fire-btn:active {
+      transform: translateY(calc(5px * var(--ui)));
+      box-shadow: 0 calc(5px * var(--ui)) 0 rgba(0,0,0,0.25);
+    }
+
+    /* ---------- Rotate overlay (if landscape lock fails) ---------- */
+    #rotate-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.72);
+      display: none;
+      z-index: 200;
+      color: #fff;
+      text-align: center;
+      padding: calc(24px * var(--ui));
+      box-sizing: border-box;
+      pointer-events: auto;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Slackey', cursive;
+    }
+    #rotate-overlay .card {
+      max-width: 520px;
+      background: rgba(255,255,255,0.08);
+      border: 2px solid rgba(255,255,255,0.25);
+      border-radius: 18px;
+      padding: calc(22px * var(--ui));
+      box-shadow: 0 calc(18px * var(--ui)) calc(50px * var(--ui)) rgba(0,0,0,0.45);
+    }
+    #rotate-overlay .big {
+      font-size: calc(38px * var(--ui));
+      line-height: 1.05;
+      margin: 0;
+      color: #00ffff;
+      text-shadow: 0 calc(6px * var(--ui)) calc(18px * var(--ui)) rgba(0,0,0,0.55);
+    }
+    #rotate-overlay .small {
+      font-family: 'Fredoka', sans-serif;
+      font-size: calc(18px * var(--ui));
+      margin-top: calc(10px * var(--ui));
+      opacity: 0.92;
+    }
   </style>
 </head>
 
@@ -157,6 +231,19 @@
   </div>
 
   <div id="crosshair"></div>
+
+  <!-- Mobile FIRE button -->
+  <div id="mobile-controls">
+    <button id="fire-btn" aria-label="Fire">FIRE</button>
+  </div>
+
+  <!-- Rotate helper overlay -->
+  <div id="rotate-overlay">
+    <div class="card">
+      <p class="big">ROTATE YOUR DEVICE</p>
+      <p class="small">Best experience is landscape. If auto-rotate fails, rotate manually.</p>
+    </div>
+  </div>
 
   <div id="overlay">
     <h1>DEEP SEA<br/>BLOOP</h1>
@@ -195,19 +282,118 @@
     let arm, charm, bubbles = [], targets = [], particles = [], seaweed = [];
     let score = 0, timeLeft = 30, gameActive = false;
 
-    // ✅ UI sabitleme (browser zoom / DPI değişimlerinde HUD büyümesin)
+    // ---------- Device mode ----------
+    const isCoarsePointer = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
+    const isTouch = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+    const isMobileLike = isCoarsePointer || isTouch;
+
+    const elMobileControls = document.getElementById('mobile-controls');
+    const elFireBtn = document.getElementById('fire-btn');
+    const elRotateOverlay = document.getElementById('rotate-overlay');
+
+    // ---------- UI scale ----------
+    const UI_BASE_W = 960;
+    const UI_BASE_H = 540;
+
     let baseDPR = window.devicePixelRatio || 1;
     let lastDPR = baseDPR;
 
     function applyUiScale() {
       const dpr = window.devicePixelRatio || 1;
-      const uiScale = baseDPR / dpr; // ters ölçek
+
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+
+      const sizeScale = Math.min(1, Math.min(w / UI_BASE_W, h / UI_BASE_H));
+      const safeMin = 0.65;
+      const clampedSizeScale = Math.max(safeMin, sizeScale);
+
+      const uiScale = clampedSizeScale * (baseDPR / dpr);
       document.documentElement.style.setProperty('--ui', uiScale.toFixed(6));
       lastDPR = dpr;
     }
     function maybeUpdateUiScale() {
       const dpr = window.devicePixelRatio || 1;
       if (Math.abs(dpr - lastDPR) > 1e-6) applyUiScale();
+    }
+
+    // ---------- Best-effort landscape lock ----------
+    function isPortraitNow() { return window.innerHeight > window.innerWidth; }
+
+    async function requestLandscapeIfMobile() {
+      if (!isMobileLike) return;
+
+      try {
+        if (!document.fullscreenElement && document.documentElement.requestFullscreen) {
+          await document.documentElement.requestFullscreen({ navigationUI: 'hide' });
+        }
+      } catch(_) {}
+
+      try {
+        if (screen.orientation && screen.orientation.lock) {
+          await screen.orientation.lock('landscape');
+        }
+      } catch(_) {}
+    }
+
+    function updateRotateOverlay() {
+      const show = isMobileLike && gameActive && isPortraitNow();
+      elRotateOverlay.style.display = show ? 'flex' : 'none';
+    }
+
+    // ---------- Mobile aiming (drag to look) ----------
+    let lookPointerId = null;
+    let lastX = 0, lastY = 0;
+    let yaw = 0, pitch = 0;
+    const LOOK_SENS = 0.0032;
+
+    function applyCameraRotation() {
+      camera.rotation.order = 'YXZ';
+      camera.rotation.y = yaw;
+      camera.rotation.x = pitch;
+    }
+
+    function onLookDown(e) {
+      if (!isMobileLike) return;
+      if (!gameActive) return;
+      if (e.target && e.target.closest && e.target.closest('#mobile-controls')) return;
+      if (e.target && e.target.closest && e.target.closest('#overlay')) return;
+
+      e.preventDefault();
+
+      lookPointerId = e.pointerId;
+      lastX = e.clientX;
+      lastY = e.clientY;
+
+      camera.rotation.order = 'YXZ';
+      yaw = camera.rotation.y;
+      pitch = camera.rotation.x;
+    }
+
+    function onLookMove(e) {
+      if (!isMobileLike) return;
+      if (!gameActive) return;
+      if (lookPointerId !== e.pointerId) return;
+
+      e.preventDefault();
+
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX;
+      lastY = e.clientY;
+
+      yaw -= dx * LOOK_SENS;
+      pitch -= dy * LOOK_SENS;
+      pitch = Math.max(-1.25, Math.min(1.25, pitch));
+
+      applyCameraRotation();
+    }
+
+    function onLookUp(e) {
+      if (!isMobileLike) return;
+      if (lookPointerId !== e.pointerId) return;
+      e.preventDefault();
+      lookPointerId = null;
     }
 
     function init() {
@@ -227,6 +413,9 @@
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
       renderer.setSize(window.innerWidth, window.innerHeight, true);
       document.body.appendChild(renderer.domElement);
+
+      // ✅ touch scroll/pinch engeli
+      renderer.domElement.style.touchAction = 'none';
 
       controls = new PointerLockControls(camera, document.body);
       clock = new THREE.Clock();
@@ -295,11 +484,41 @@
       scene.add(camera);
 
       document.getElementById('start-btn').onclick = startGame;
-      window.onmousedown = shoot;
 
-      // ✅ resize + UI lock
-      window.addEventListener('resize', () => { resize(); applyUiScale(); });
-      window.addEventListener('orientationchange', () => { resize(); applyUiScale(); });
+      // Desktop: mousedown shoots
+      if (!isMobileLike) {
+        window.addEventListener('mousedown', () => shoot());
+      }
+
+      // Mobile: FIRE button shoots
+      if (isMobileLike) {
+        elMobileControls.style.display = 'block';
+        elFireBtn.addEventListener('pointerdown', (e) => {
+          e.preventDefault();
+          shoot();
+        }, { passive: false });
+      }
+
+      // Mobile aiming: drag on canvas
+      renderer.domElement.addEventListener('pointerdown', onLookDown, { passive: false });
+      renderer.domElement.addEventListener('pointermove', onLookMove, { passive: false });
+      renderer.domElement.addEventListener('pointerup', onLookUp, { passive: false });
+      renderer.domElement.addEventListener('pointercancel', onLookUp, { passive: false });
+
+      // ✅ resize/orientation (rAF debounce)
+      let resizeQueued = false;
+      const requestResize = () => {
+        if (resizeQueued) return;
+        resizeQueued = true;
+        requestAnimationFrame(() => {
+          resizeQueued = false;
+          resize();
+          applyUiScale();
+          updateRotateOverlay();
+        });
+      };
+      window.addEventListener('resize', requestResize);
+      window.addEventListener('orientationchange', requestResize);
 
       applyUiScale();
       resize();
@@ -364,8 +583,8 @@
       targets.push(group);
     }
 
-    function startGame() {
-      if (audioCtx.state === 'suspended') audioCtx.resume();
+    async function startGame() {
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
 
       score = 0;
       timeLeft = 30;
@@ -377,7 +596,15 @@
       document.getElementById('oxygen-fill').style.width = '100%';
       document.getElementById('screen-wave').classList.remove('frenzy-active');
 
-      controls.lock();
+      // Mobile/tablet: best-effort landscape
+      if (isMobileLike) {
+        requestLandscapeIfMobile().finally(() => {
+          updateRotateOverlay();
+        });
+        camera.rotation.order = 'YXZ';
+      } else {
+        controls.lock();
+      }
 
       // temiz başlat
       targets.forEach(t => scene.remove(t));
@@ -388,10 +615,16 @@
       particles = [];
 
       for (let i = 0; i < 8; i++) createPuffer();
+
+      applyUiScale();
+      updateRotateOverlay();
     }
 
     function shoot() {
-      if (!controls.isLocked || !gameActive) return;
+      if (!gameActive) return;
+      if (!isMobileLike && !controls.isLocked) return;
+
+      if (audioCtx.state === 'suspended') audioCtx.resume();
 
       playBloop(150, 0.2);
       arm.position.z += 0.2;
@@ -449,7 +682,7 @@
     function animate() {
       requestAnimationFrame(animate);
 
-      // ✅ zoom/scale değişince HUD sabit kalsın
+      // ✅ zoom/scale değişince HUD sabit + responsive kalsın
       maybeUpdateUiScale();
 
       // ✅ canvas ölçüsü değişince oyun bozulmasın
@@ -521,7 +754,9 @@
 
     function endGame() {
       gameActive = false;
-      controls.unlock();
+      updateRotateOverlay();
+
+      if (!isMobileLike) controls.unlock();
       document.getElementById('screen-wave').classList.remove('frenzy-active');
 
       const over = document.getElementById('overlay');
