@@ -118,7 +118,7 @@ games.forEach((game,index) => {
   const color = shuffledColors[index % shuffledColors.length];
   const card = document.createElement("div");
   card.className = `
-    game-card bg-gradient-to-br from-${color}-50 to-${color}-50
+    game-card   bg-gradient-to-br from-${color}-50 to-${color}-50
     rounded-2xl p-2 md:p-8 border-2 border-${color}-200 hover:border-${color}-400
   `;
 
