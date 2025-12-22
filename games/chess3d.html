@@ -10,17 +10,18 @@
             --glass-border: rgba(255, 255, 255, 0.2);
             --accent: #00d2ff;
             --white-p: #f0f0e0;
-            --black-p: #444;
+            --black-p: #b7b4ff;
             --danger: #ff4b2b;
-            /* Brighter background color */
-            --bg-color: #2a2a30; 
         }
-        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg-color); color: white; }
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; background: #1a1a1e; color: white; }
+
+        /* ✅ Slight brightness boost (only the 3D canvas; UI/effects unchanged) */
+        canvas { display:block; filter: brightness(1.06) saturate(1.06) contrast(1.03); }
         
         #ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
-            padding: 15px; box-sizing: border-box; z-index: 10;
+            padding: 20px; box-sizing: border-box; z-index: 10;
         }
         .panel {
             background: var(--glass);
@@ -28,71 +29,81 @@
             -webkit-backdrop-filter: blur(15px);
             border: 1px solid var(--glass-border);
             border-radius: 12px;
-            padding: 15px;
+            padding: 20px;
             pointer-events: auto;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
         }
+        #top-bar { width: 300px; }
+        #status { font-size: 1.4rem; font-weight: 300; margin-bottom: 5px; color: var(--accent); }
+        #turn { font-size: 0.8rem; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px; }
 
-        /* Top Bar Responsive */
-        #top-bar { width: 100%; max-width: 280px; box-sizing: border-box; }
-        #status { font-size: 1.2rem; font-weight: 300; margin-bottom: 5px; color: var(--accent); }
-        #turn { font-size: 0.75rem; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px; }
-
-        /* Side Panel Responsive */
-        #side-panel { 
-            position: absolute; right: 15px; top: 15px; width: 240px; 
-            max-height: calc(100% - 30px); display: flex; flex-direction: column; gap: 15px; 
-        }
-
-        /* Mobile Adjustments */
-        @media (max-width: 768px) {
-            #ui-layer { justify-content: flex-start; gap: 10px; }
-            #top-bar { max-width: 100%; order: 1; }
-            #side-panel { 
-                position: relative; right: auto; top: auto; width: 100%; 
-                max-height: 30vh; order: 2; flex-direction: row; 
-            }
-            #side-panel .panel { flex: 1; padding: 10px; }
-            .log-container { max-height: 80px !important; }
-            .captures { font-size: 1.1rem !important; padding: 5px !important; }
-            #game-over-overlay h1 { font-size: 2.5rem !important; }
-        }
-
-        .log-container { flex-grow: 1; overflow-y: auto; font-size: 0.8rem; max-height: 200px; scrollbar-width: thin; }
-        .log-entry { padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        #side-panel { position: absolute; right: 20px; top: 20px; width: 240px; max-height: 85vh; display: flex; flex-direction: column; gap: 15px; }
+        .log-container { flex-grow: 1; overflow-y: auto; font-size: 0.85rem; max-height: 250px; scrollbar-width: thin; -webkit-overflow-scrolling: touch; }
+        .log-entry { padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
         
-        .capture-section { margin-bottom: 10px; }
-        .capture-label { font-size: 0.65rem; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px; color: var(--accent); }
-        .captures { display: flex; flex-wrap: wrap; gap: 4px; min-height: 30px; font-size: 1.2rem; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; }
+        .capture-section { margin-bottom: 15px; }
+        .capture-label { font-size: 0.7rem; font-weight: bold; letter-spacing: 1px; margin-bottom: 8px; color: var(--accent); }
+        .captures { display: flex; flex-wrap: wrap; gap: 4px; min-height: 35px; font-size: 1.4rem; padding: 10px; background: rgba(0,0,0,0.3); border-radius: 8px; }
         #captures-white span { color: #fff; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
         #captures-black span { color: #555; text-shadow: 0 0 5px rgba(0,0,0,0.5); }
         
         button {
-            margin-top: 10px; padding: 10px; background: var(--accent); color: #000;
+            margin-top: 15px; padding: 12px; background: var(--accent); color: #000;
             border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
-            transition: all 0.2s; width: 100%; text-transform: uppercase; font-size: 0.8rem;
+            transition: all 0.2s; width: 100%; text-transform: uppercase;
         }
-        button:hover { transform: translateY(-1px); filter: brightness(1.1); }
+        button:hover { transform: translateY(-2px); filter: brightness(1.1); box-shadow: 0 4px 15px rgba(0,210,255,0.4); }
         
         /* Overlays */
         #loading-overlay, #game-over-overlay {
             position: fixed; inset: 0; background: rgba(0,0,0,0.8);
             display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; backdrop-filter: blur(10px);
         }
-        #game-over-overlay h1 { font-size: 4rem; margin: 0; text-transform: uppercase; letter-spacing: 5px; text-align: center; }
-        #game-over-overlay p { font-size: 1.1rem; opacity: 0.8; margin-bottom: 30px; text-align: center; }
+        #game-over-overlay h1 { font-size: 4rem; margin: 0; text-transform: uppercase; letter-spacing: 5px; }
+        #game-over-overlay p { font-size: 1.2rem; opacity: 0.8; margin-bottom: 30px; }
         .win-text { color: var(--accent); text-shadow: 0 0 20px var(--accent); }
         .lose-text { color: var(--danger); text-shadow: 0 0 20px var(--danger); }
 
-        .spinner { width: 40px; height: 40px; border: 3px solid var(--accent); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 15px; }
+        .spinner { width: 50px; height: 50px; border: 3px solid var(--accent); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 15px; }
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ✅ Responsive UI (layout-only; no visual effects removed) */
+        @media (max-width: 820px) {
+            #ui-layer { padding: 12px; }
+            #top-bar { width: min(92vw, 360px); }
+            #side-panel { right: 12px; top: 12px; width: min(92vw, 320px); max-height: 78vh; }
+        }
+        @media (max-width: 600px) {
+            #ui-layer { padding: 10px; }
+            #top-bar { width: auto; max-width: none; }
+            #side-panel {
+                position: absolute;
+                left: 10px;
+                right: 10px;
+                top: auto;
+                bottom: 10px;
+                width: auto;
+                max-height: 48vh;
+            }
+            .panel { padding: 14px; }
+            #status { font-size: 1.15rem; }
+            #turn { font-size: 0.75rem; }
+            button { padding: 11px; }
+            .log-container { max-height: 180px; }
+            #game-over-overlay h1 { font-size: 2.6rem; letter-spacing: 3px; }
+            #game-over-overlay p { font-size: 1rem; padding: 0 16px; text-align: center; }
+        }
+        @media (max-height: 520px) {
+            #side-panel { max-height: 65vh; }
+            .log-container { max-height: 140px; }
+        }
     </style>
 </head>
 <body>
 
     <div id="loading-overlay">
         <div class="spinner"></div>
-        <div style="letter-spacing: 2px; font-size: 0.8rem;">GRANDMASTER AI CALCULATING...</div>
+        <div style="letter-spacing: 2px;">GRANDMASTER AI CALCULATING...</div>
     </div>
 
     <div id="game-over-overlay">
@@ -121,7 +132,7 @@
                     <div id="captures-black" class="captures"></div>
                 </div>
             </div>
-            <div class="panel" style="flex-grow: 1; display: flex; flex-direction: column;">
+            <div class="panel" style="flex-grow: 1;">
                 <div class="capture-label">MOVE HISTORY</div>
                 <div id="history" class="log-container"></div>
             </div>
@@ -265,8 +276,7 @@
 
         // --- 3D RENDERER SETUP ---
         const scene = new THREE.Scene();
-        // Brighter 3D Background
-        scene.background = new THREE.Color(0x2a2a30); 
+        scene.background = new THREE.Color(0x1a1a1e);
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
@@ -278,7 +288,7 @@
         camera.position.set(0, 10, 12);
         controls.enableDamping = true;
 
-        const ambient = new THREE.AmbientLight(0xffffff, 0.9); scene.add(ambient);
+        const ambient = new THREE.AmbientLight(0xffffff, 0.8); scene.add(ambient);
         const spotLight = new THREE.SpotLight(0xffffff, 200);
         spotLight.position.set(5, 15, 5); spotLight.castShadow = true;
         spotLight.shadow.mapSize.width = 2048; scene.add(spotLight);
@@ -465,6 +475,7 @@
             return false;
         }
 
+        // --- AI LOGIC ---
         function evaluateBoard(board) {
             let total = 0;
             for (let r = 0; r < 8; r++) {
