@@ -1,11 +1,14 @@
-function goHome() {
+import { renderGames } from '../global.js';
+
+function goHome() { // still need it
 // Eğer ../index.html çalışmıyorsa, yolu şu şekilde zorla:
     // Mevcut adresin sonundaki /holder/holder.html kısmını atıp index.html ekler.
     const rootPath = window.location.href.split('/holder/')[0];
     window.location.href = rootPath + "/index.html";
 }
 
-window.onload = function() {
+
+document.addEventListener("DOMContentLoaded", ()=> {
     const params = new URLSearchParams(window.location.search);
     const title = params.get('title');
     const gameUrl = params.get('gameUrl');
@@ -22,4 +25,7 @@ window.onload = function() {
         // Parametre yoksa ana sayfaya güvenli dönüş
         goHome();
     }
-};
+
+
+     renderGames("gamesGridForHolder",6)
+    });

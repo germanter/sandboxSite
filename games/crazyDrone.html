@@ -675,6 +675,18 @@ document.getElementById('mobile-toggle').onclick = () => {
         renderer.setSize(innerWidth, innerHeight);
     });
 
+    // --- SCROLL ENGELLEME VE TUŞ YAKALAMA ---
+window.addEventListener('keydown', (e) => {
+    // Engellenmesi gereken tuşlar listesi
+    const keysToBlock = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "];
+    
+    if (keysToBlock.includes(e.key)) {
+        e.preventDefault(); // Tarayıcının sayfayı kaydırmasını engeller
+    }
+    
+    keys[e.key] = true; // Mevcut drona hareket verme mantığını bozmaz
+}, { passive: false });
+
     animate();
     </script>
 </body>

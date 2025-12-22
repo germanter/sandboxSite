@@ -19,3 +19,13 @@ sora at onu bizim sayta pramoy img nin direct linkini sal liste hazir, sekilin b
 1280x720 olsun istyir 567x345 olsun sistem onu handle eleyir
 
 https://postimg.cc/fJQFLvjy -- imagelerin sayti
+
+
+----------------------------------------------------------
+
+README PART2 - 
+he demeli
+sen neylemelisen part = teze oyun getirende global.js e ekleyirsen list artiq global.js deyirdi
+
+niye -> cunku artiq holder de index de oyunlari cagirmaya ehtiyaci var 
+buna gore merkezi yer globaldi ikiside ordan datayi ve funksiyani cekir
