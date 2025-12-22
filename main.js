@@ -63,6 +63,11 @@ const games = [
     imgLink: "https://i.postimg.cc/NFggtWQ2/neon-Race.webp"
   },
   {
+    title: "3D Chess",
+    link: "/games//chess3d.html",
+    imgLink: "https://i.postimg.cc/y838Cv9k/chess3d.webp"
+  },
+  {
     title: "3D Shoot The Aliens",
     link: "/games//shootAliens3d.html",
     imgLink: "https://i.postimg.cc/0jc9ycNn/shoot-The-Aliens.webp"

@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Grandmaster 3D - Pro Edition</title>
+    <style>
+        :root {
+            --glass: rgba(255, 255, 255, 0.1);
+            --glass-border: rgba(255, 255, 255, 0.2);
+            --accent: #00d2ff;
+            --white-p: #f0f0e0;
+            --black-p: #444;
+            --danger: #ff4b2b;
+            /* Brighter background color */
+            --bg-color: #2a2a30; 
+        }
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg-color); color: white; }
+        
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; display: flex; flex-direction: column; justify-content: space-between;
+            padding: 15px; box-sizing: border-box; z-index: 10;
+        }
+        .panel {
+            background: var(--glass);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 15px;
+            pointer-events: auto;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+        }
+
+        /* Top Bar Responsive */
+        #top-bar { width: 100%; max-width: 280px; box-sizing: border-box; }
+        #status { font-size: 1.2rem; font-weight: 300; margin-bottom: 5px; color: var(--accent); }
+        #turn { font-size: 0.75rem; opacity: 0.8; text-transform: uppercase; letter-spacing: 1px; }
+
+        /* Side Panel Responsive */
+        #side-panel { 
+            position: absolute; right: 15px; top: 15px; width: 240px; 
+            max-height: calc(100% - 30px); display: flex; flex-direction: column; gap: 15px; 
+        }
+
+        /* Mobile Adjustments */
+        @media (max-width: 768px) {
+            #ui-layer { justify-content: flex-start; gap: 10px; }
+            #top-bar { max-width: 100%; order: 1; }
+            #side-panel { 
+                position: relative; right: auto; top: auto; width: 100%; 
+                max-height: 30vh; order: 2; flex-direction: row; 
+            }
+            #side-panel .panel { flex: 1; padding: 10px; }
+            .log-container { max-height: 80px !important; }
+            .captures { font-size: 1.1rem !important; padding: 5px !important; }
+            #game-over-overlay h1 { font-size: 2.5rem !important; }
+        }
+
+        .log-container { flex-grow: 1; overflow-y: auto; font-size: 0.8rem; max-height: 200px; scrollbar-width: thin; }
+        .log-entry { padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+        
+        .capture-section { margin-bottom: 10px; }
+        .capture-label { font-size: 0.65rem; font-weight: bold; letter-spacing: 1px; margin-bottom: 5px; color: var(--accent); }
+        .captures { display: flex; flex-wrap: wrap; gap: 4px; min-height: 30px; font-size: 1.2rem; padding: 8px; background: rgba(0,0,0,0.2); border-radius: 8px; }
+        #captures-white span { color: #fff; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
+        #captures-black span { color: #555; text-shadow: 0 0 5px rgba(0,0,0,0.5); }
+        
+        button {
+            margin-top: 10px; padding: 10px; background: var(--accent); color: #000;
+            border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
+            transition: all 0.2s; width: 100%; text-transform: uppercase; font-size: 0.8rem;
+        }
+        button:hover { transform: translateY(-1px); filter: brightness(1.1); }
+        
+        /* Overlays */
+        #loading-overlay, #game-over-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.8);
+            display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; backdrop-filter: blur(10px);
+        }
+        #game-over-overlay h1 { font-size: 4rem; margin: 0; text-transform: uppercase; letter-spacing: 5px; text-align: center; }
+        #game-over-overlay p { font-size: 1.1rem; opacity: 0.8; margin-bottom: 30px; text-align: center; }
+        .win-text { color: var(--accent); text-shadow: 0 0 20px var(--accent); }
+        .lose-text { color: var(--danger); text-shadow: 0 0 20px var(--danger); }
+
+        .spinner { width: 40px; height: 40px; border: 3px solid var(--accent); border-top-color: transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 15px; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+    <div id="loading-overlay">
+        <div class="spinner"></div>
+        <div style="letter-spacing: 2px; font-size: 0.8rem;">GRANDMASTER AI CALCULATING...</div>
+    </div>
+
+    <div id="game-over-overlay">
+        <h1 id="end-title">YOU WIN</h1>
+        <p id="end-subtitle">Checkmate - The board is yours.</p>
+        <div style="width: 200px;">
+            <button onclick="resetGame()">Play Again</button>
+        </div>
+    </div>
+
+    <div id="ui-layer">
+        <div id="top-bar" class="panel">
+            <div id="status">White's Move</div>
+            <div id="turn">Difficulty: Grandmaster</div>
+            <button onclick="resetGame()">New Match</button>
+        </div>
+
+        <div id="side-panel">
+            <div class="panel">
+                <div class="capture-section">
+                    <div class="capture-label">WHITE'S TROPHIES</div>
+                    <div id="captures-white" class="captures"></div>
+                </div>
+                <div class="capture-section">
+                    <div class="capture-label">BLACK'S TROPHIES</div>
+                    <div id="captures-black" class="captures"></div>
+                </div>
+            </div>
+            <div class="panel" style="flex-grow: 1; display: flex; flex-direction: column;">
+                <div class="capture-label">MOVE HISTORY</div>
+                <div id="history" class="log-container"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/",
+                "gsap": "https://cdn.skypack.dev/gsap"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { OutlineEffect } from 'three/addons/effects/OutlineEffect.js';
+        import gsap from 'gsap';
+
+        const WHITE = 'w', BLACK = 'b';
+        const PIECE_VALUES = { 'p': 100, 'n': 320, 'b': 330, 'r': 500, 'q': 900, 'k': 20000 };
+        
+        const PST = {
+            'p': [[0,0,0,0,0,0,0,0],[50,50,50,50,50,50,50,50],[10,10,20,30,30,20,10,10],[5,5,10,25,25,10,5,5],[0,0,0,20,20,0,0,0],[5,-5,-10,0,0,-10,-5,5],[5,10,10,-20,-20,10,10,5],[0,0,0,0,0,0,0,0]],
+            'n': [[-50,-40,-30,-30,-30,-30,-40,-50],[-40,-20,0,0,0,0,-20,-40],[-30,0,10,15,15,10,0,-30],[-30,5,15,20,20,15,5,-30],[-30,0,15,20,20,15,0,-30],[-30,5,10,15,15,10,5,-30],[-40,-20,0,5,5,0,-20,-40],[-50,-40,-30,-30,-30,-30,-40,-50]],
+            'b': [[-20,-10,-10,-10,-10,-10,-10,-20],[-10,0,0,0,0,0,0,-10],[-10,0,5,10,10,5,0,-10],[-10,5,5,10,10,5,5,-10],[-10,0,10,10,10,10,0,-10],[-10,10,10,10,10,10,10,-10],[-10,5,0,0,0,0,5,-10],[-20,-10,-10,-10,-10,-10,-10,-20]],
+            'k': [[-30,-40,-40,-50,-50,-40,-40,-30],[-30,-40,-40,-50,-50,-40,-40,-30],[-30,-40,-40,-50,-50,-40,-40,-30],[-30,-40,-40,-50,-50,-40,-40,-30],[-20,-30,-30,-40,-40,-30,-30,-20],[-10,-20,-20,-20,-20,-20,-20,-10],[20,20,0,0,0,0,20,20],[20,30,10,0,0,10,30,20]]
+        };
+
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSound(type) {
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain); gain.connect(audioCtx.destination);
+            const now = audioCtx.currentTime;
+            if (type === 'select') {
+                osc.frequency.setValueAtTime(600, now); gain.gain.setValueAtTime(0.05, now);
+                osc.start(); osc.stop(now + 0.05);
+            } else if (type === 'move') {
+                osc.frequency.setValueAtTime(200, now); gain.gain.setValueAtTime(0.1, now);
+                osc.start(); osc.stop(now + 0.1);
+            } else if (type === 'capture') {
+                osc.type = 'square'; osc.frequency.setValueAtTime(100, now); gain.gain.setValueAtTime(0.1, now);
+                osc.start(); osc.stop(now + 0.2);
+            }
+        }
+
+        class ChessEngine {
+            constructor() { this.reset(); }
+            reset() {
+                this.board = Array(8).fill(null).map(() => Array(8).fill(null));
+                const layout = ['r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'];
+                for (let i = 0; i < 8; i++) {
+                    this.board[0][i] = { type: layout[i], color: WHITE };
+                    this.board[1][i] = { type: 'p', color: WHITE };
+                    this.board[6][i] = { type: 'p', color: BLACK };
+                    this.board[7][i] = { type: layout[i], color: BLACK };
+                }
+                this.turn = WHITE;
+                this.gameOver = false;
+            }
+            isInside(r, c) { return r >= 0 && r < 8 && c >= 0 && c < 8; }
+            getPseudoLegalMoves(r, c, board = this.board) {
+                const piece = board[r][c];
+                if (!piece) return [];
+                const moves = [];
+                const dirs = {
+                    'r': [[1,0], [-1,0], [0,1], [0,-1]],
+                    'b': [[1,1], [1,-1], [-1,1], [-1,-1]],
+                    'q': [[1,0], [-1,0], [0,1], [0,-1], [1,1], [1,-1], [-1,1], [-1,-1]],
+                    'k': [[1,0], [-1,0], [0,1], [0,-1], [1,1], [1,-1], [-1,1], [-1,-1]],
+                    'n': [[2,1], [2,-1], [-2,1], [-2,-1], [1,2], [1,-2], [-1,2], [-1,-2]]
+                };
+                if (piece.type === 'p') {
+                    const d = piece.color === WHITE ? 1 : -1;
+                    if (this.isInside(r+d, c) && !board[r+d][c]) {
+                        moves.push([r+d, c]);
+                        if (((piece.color === WHITE && r === 1) || (piece.color === BLACK && r === 6)) && !board[r+2*d][c] && !board[r+d][c]) moves.push([r+2*d, c]);
+                    }
+                    [[d, 1], [d, -1]].forEach(([dr, dc]) => {
+                        if (this.isInside(r+dr, c+dc)) {
+                            const t = board[r+dr][c+dc];
+                            if (t && t.color !== piece.color) moves.push([r+dr, c+dc]);
+                        }
+                    });
+                } else if (dirs[piece.type]) {
+                    const single = (piece.type === 'k' || piece.type === 'n');
+                    dirs[piece.type].forEach(([dr, dc]) => {
+                        let nr = r + dr, nc = c + dc;
+                        while (this.isInside(nr, nc)) {
+                            const t = board[nr][nc];
+                            if (!t) { moves.push([nr, nc]); if (single) break; nr += dr; nc += dc; }
+                            else { if (t.color !== piece.color) moves.push([nr, nc]); break; }
+                        }
+                    });
+                }
+                return moves;
+            }
+            getValidMoves(r, c, board = this.board) {
+                const piece = board[r][c];
+                if (!piece) return [];
+                return this.getPseudoLegalMoves(r, c, board).filter(([tr, tc]) => {
+                    const temp = board[tr][tc];
+                    board[tr][tc] = piece; board[r][c] = null;
+                    const check = this.isInCheck(piece.color, board);
+                    board[r][c] = piece; board[tr][tc] = temp;
+                    return !check;
+                });
+            }
+            isInCheck(color, board = this.board) {
+                let kr, kc;
+                for (let r=0; r<8; r++) for (let c=0; c<8; c++) {
+                    const p = board[r][c];
+                    if (p && p.type === 'k' && p.color === color) { kr = r; kc = c; break; }
+                }
+                const opp = color === WHITE ? BLACK : WHITE;
+                for (let r=0; r<8; r++) for (let c=0; c<8; c++) {
+                    const p = board[r][c];
+                    if (p && p.color === opp) {
+                        if (this.getPseudoLegalMoves(r, c, board).some(m => m[0] === kr && m[1] === kc)) return true;
+                    }
+                }
+                return false;
+            }
+            getAllValidMoves(color, board = this.board) {
+                const moves = [];
+                for(let r=0; r<8; r++) {
+                    for(let c=0; c<8; c++) {
+                        if(board[r][c] && board[r][c].color === color) {
+                            const m = this.getValidMoves(r, c, board);
+                            if(m.length > 0) moves.push({from:[r,c], moves:m});
+                        }
+                    }
+                }
+                return moves;
+            }
+        }
+
+        // --- 3D RENDERER SETUP ---
+        const scene = new THREE.Scene();
+        // Brighter 3D Background
+        scene.background = new THREE.Color(0x2a2a30); 
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        const outlineEffect = new OutlineEffect(renderer, { defaultThickness: 0.003, defaultColor: [0, 0.8, 1], defaultAlpha: 0.5 });
+        const controls = new OrbitControls(camera, renderer.domElement);
+        camera.position.set(0, 10, 12);
+        controls.enableDamping = true;
+
+        const ambient = new THREE.AmbientLight(0xffffff, 0.9); scene.add(ambient);
+        const spotLight = new THREE.SpotLight(0xffffff, 200);
+        spotLight.position.set(5, 15, 5); spotLight.castShadow = true;
+        spotLight.shadow.mapSize.width = 2048; scene.add(spotLight);
+
+        const pieceMeshes = new Map();
+        const pieceGroup = new THREE.Group();
+        const tileGroup = new THREE.Group();
+        scene.add(pieceGroup, tileGroup);
+
+        function createPieceMesh(type, color, r, c) {
+            const group = new THREE.Group();
+            const mat = new THREE.MeshStandardMaterial({ 
+                color: color === WHITE ? 0xf0f0f0 : 0x111111, 
+                roughness: 0.1, metalness: 0.5 
+            });
+            const pts = getStauntonPoints(type);
+            const body = new THREE.Mesh(new THREE.LatheGeometry(pts, 32), mat);
+            body.castShadow = true; group.add(body);
+            if (type === 'n') {
+                const head = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.5, 0.5), mat);
+                head.position.y = 0.7; head.rotation.x = 0.5; group.add(head);
+            }
+            group.userData = { r, c };
+            return group;
+        }
+
+        function getStauntonPoints(type) {
+            const pts = [];
+            if(type === 'p') { for (let i = 0; i < 10; i++) pts.push(new THREE.Vector2(0.35 - Math.sin(i*0.3)*0.1, i*0.08)); pts.push(new THREE.Vector2(0.15, 0.8), new THREE.Vector2(0, 1.0)); }
+            else if(type === 'r') pts.push(new THREE.Vector2(0.4, 0), new THREE.Vector2(0.4, 0.2), new THREE.Vector2(0.3, 0.2), new THREE.Vector2(0.3, 0.8), new THREE.Vector2(0.4, 1.1), new THREE.Vector2(0, 1.1));
+            else if(type === 'b') pts.push(new THREE.Vector2(0.4,0), new THREE.Vector2(0.35, 0.2), new THREE.Vector2(0.15, 0.7), new THREE.Vector2(0, 1.2));
+            else if(type === 'q') pts.push(new THREE.Vector2(0.45, 0), new THREE.Vector2(0.2, 0.8), new THREE.Vector2(0.4, 1.2), new THREE.Vector2(0, 1.4));
+            else if(type === 'k') pts.push(new THREE.Vector2(0.45, 0), new THREE.Vector2(0.25, 0.9), new THREE.Vector2(0.4, 1.5), new THREE.Vector2(0, 1.5));
+            else pts.push(new THREE.Vector2(0.4, 0), new THREE.Vector2(0.35, 0.2), new THREE.Vector2(0.2, 0.5));
+            return pts;
+        }
+
+        const engine = new ChessEngine();
+
+        for (let r = 0; r < 8; r++) {
+            for (let c = 0; c < 8; c++) {
+                const tile = new THREE.Mesh(new THREE.BoxGeometry(1, 0.2, 1), new THREE.MeshStandardMaterial({ 
+                    color: (r + c) % 2 === 0 ? 0x222222 : 0x444444,
+                    metalness: 0.2, roughness: 0.8
+                }));
+                tile.position.set(c - 3.5, -0.1, r - 3.5); tile.receiveShadow = true;
+                tile.userData = { r, c }; tileGroup.add(tile);
+            }
+        }
+
+        function syncBoard() {
+            pieceGroup.clear(); pieceMeshes.clear();
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const data = engine.board[r][c];
+                    if (data) {
+                        const mesh = createPieceMesh(data.type, data.color, r, c);
+                        mesh.position.set(c - 3.5, 0, r - 3.5); pieceGroup.add(mesh);
+                        pieceMeshes.set(`${r},${c}`, mesh);
+                    }
+                }
+            }
+        }
+        syncBoard();
+
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
+        let selected = null;
+        const markerGroup = new THREE.Group();
+        scene.add(markerGroup);
+
+        window.addEventListener('mousedown', (e) => {
+            if (engine.turn === BLACK || engine.gameOver) return;
+            mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
+            mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
+            raycaster.setFromCamera(mouse, camera);
+
+            const intersects = raycaster.intersectObjects([...pieceGroup.children, ...tileGroup.children], true);
+            if (intersects.length > 0) {
+                let obj = intersects[0].object;
+                while(obj.parent && obj.userData.r === undefined) obj = obj.parent;
+                const { r, c } = obj.userData;
+                if (r === undefined) return;
+
+                if (selected) {
+                    const moves = engine.getValidMoves(selected.r, selected.c);
+                    const move = moves.find(m => m[0] === r && m[1] === c);
+                    if (move) {
+                        executeMove(selected.r, selected.c, r, c);
+                        selected = null; markerGroup.clear();
+                    } else {
+                        const piece = engine.board[r][c];
+                        if (piece && piece.color === WHITE) {
+                            selected = { r, c }; highlightMoves(r, c); playSound('select');
+                        } else {
+                            selected = null; markerGroup.clear();
+                        }
+                    }
+                } else {
+                    const piece = engine.board[r][c];
+                    if (piece && piece.color === WHITE) {
+                        selected = { r, c }; highlightMoves(r, c); playSound('select');
+                    }
+                }
+            }
+        });
+
+        function highlightMoves(r, c) {
+            markerGroup.clear();
+            engine.getValidMoves(r, c).forEach(([mr, mc]) => {
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(0.35, 0.03, 16, 32), new THREE.MeshBasicMaterial({ color: 0x00d2ff }));
+                ring.rotation.x = Math.PI / 2; ring.position.set(mc - 3.5, 0.05, mr - 3.5);
+                markerGroup.add(ring);
+            });
+        }
+
+        function executeMove(fromR, fromC, toR, toC) {
+            const piece = engine.board[fromR][fromC];
+            const target = engine.board[toR][toC];
+            const mesh = pieceMeshes.get(`${fromR},${fromC}`);
+
+            if (target) {
+                playSound('capture');
+                const capDivId = piece.color === WHITE ? 'captures-white' : 'captures-black';
+                document.getElementById(capDivId).innerHTML += `<span>${getIcon(target.type)}</span>`;
+                const targetMesh = pieceMeshes.get(`${toR},${toC}`);
+                pieceGroup.remove(targetMesh);
+            } else playSound('move');
+
+            const entry = document.createElement('div');
+            entry.className = 'log-entry';
+            entry.innerText = `${piece.color==='w'?'White':'Black'} ${piece.type.toUpperCase()} ${String.fromCharCode(97+toC)}${toR+1}`;
+            document.getElementById('history').prepend(entry);
+
+            gsap.to(mesh.position, {
+                x: toC - 3.5, z: toR - 3.5, duration: 0.4, ease: "power2.out",
+                onStart: () => gsap.to(mesh.position, { y: 0.8, duration: 0.2, yoyo: true, repeat: 1 }),
+                onComplete: () => {
+                    mesh.userData = { r: toR, c: toC };
+                    engine.board[toR][toC] = piece; engine.board[fromR][fromC] = null;
+                    pieceMeshes.delete(`${fromR},${fromC}`); pieceMeshes.set(`${toR},${toC}`, mesh);
+                    
+                    engine.turn = engine.turn === WHITE ? BLACK : WHITE;
+                    
+                    if (!checkGameOver()) {
+                        if (engine.isInCheck(engine.turn)) {
+                            document.getElementById('status').innerText = engine.turn === WHITE ? "White in Check!" : "Black in Check!";
+                        } else {
+                            document.getElementById('status').innerText = engine.turn === WHITE ? "White's Move" : "AI is thinking...";
+                        }
+                        if (engine.turn === BLACK) setTimeout(triggerAI, 100);
+                    }
+                }
+            });
+        }
+
+        function checkGameOver() {
+            const validMoves = engine.getAllValidMoves(engine.turn);
+            if (validMoves.length === 0) {
+                engine.gameOver = true;
+                const isCheck = engine.isInCheck(engine.turn);
+                const title = document.getElementById('end-title');
+                const sub = document.getElementById('end-subtitle');
+                
+                if (isCheck) {
+                    if (engine.turn === WHITE) {
+                        title.innerText = "YOU LOST";
+                        title.className = "lose-text";
+                        sub.innerText = "Black has achieved Checkmate.";
+                    } else {
+                        title.innerText = "YOU WIN";
+                        title.className = "win-text";
+                        sub.innerText = "Grandmaster Defeated. Checkmate.";
+                    }
+                } else {
+                    title.innerText = "DRAW";
+                    title.className = "";
+                    sub.innerText = "Stalemate - No moves left.";
+                }
+                
+                document.getElementById('game-over-overlay').style.display = 'flex';
+                return true;
+            }
+            return false;
+        }
+
+        function evaluateBoard(board) {
+            let total = 0;
+            for (let r = 0; r < 8; r++) {
+                for (let c = 0; c < 8; c++) {
+                    const p = board[r][c];
+                    if (p) {
+                        let val = PIECE_VALUES[p.type];
+                        if (PST[p.type]) val += (p.color === WHITE ? PST[p.type][7-r][c] : PST[p.type][r][c]);
+                        total += (p.color === WHITE ? val : -val);
+                    }
+                }
+            }
+            return total;
+        }
+
+        function minimax(depth, board, alpha, beta, isMaximizing) {
+            if (depth === 0) return -evaluateBoard(board);
+            let bestVal = isMaximizing ? -Infinity : Infinity;
+            const turn = isMaximizing ? BLACK : WHITE;
+            const moves = engine.getAllValidMoves(turn, board);
+
+            if (moves.length === 0) return isMaximizing ? -100000 : 100000;
+
+            for (const pMove of moves) {
+                const [r, c] = pMove.from;
+                const piece = board[r][c];
+                for (const [tr, tc] of pMove.moves) {
+                    const temp = board[tr][tc];
+                    board[tr][tc] = piece; board[r][c] = null;
+                    const val = minimax(depth - 1, board, alpha, beta, !isMaximizing);
+                    board[r][c] = piece; board[tr][tc] = temp;
+
+                    if (isMaximizing) {
+                        bestVal = Math.max(bestVal, val);
+                        alpha = Math.max(alpha, bestVal);
+                    } else {
+                        bestVal = Math.min(bestVal, val);
+                        beta = Math.min(beta, bestVal);
+                    }
+                    if (beta <= alpha) break;
+                }
+            }
+            return bestVal;
+        }
+
+        function triggerAI() {
+            document.getElementById('loading-overlay').style.display = 'flex';
+            setTimeout(() => {
+                let bestMove = null;
+                let bestVal = -Infinity;
+                const depth = 3; 
+
+                const moves = engine.getAllValidMoves(BLACK);
+                for (const pMove of moves) {
+                    const [r, c] = pMove.from;
+                    const piece = engine.board[r][c];
+                    for (const [tr, tc] of pMove.moves) {
+                        const temp = engine.board[tr][tc];
+                        engine.board[tr][tc] = piece; engine.board[r][c] = null;
+                        const val = minimax(depth - 1, engine.board, -Infinity, Infinity, false);
+                        engine.board[r][c] = piece; engine.board[tr][tc] = temp;
+                        if (val > bestVal) {
+                            bestVal = val;
+                            bestMove = { from: [r, c], to: [tr, tc] };
+                        }
+                    }
+                }
+                document.getElementById('loading-overlay').style.display = 'none';
+                if (bestMove) executeMove(bestMove.from[0], bestMove.from[1], bestMove.to[0], bestMove.to[1]);
+            }, 50);
+        }
+
+        function getIcon(type) { return { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚' }[type]; }
+        window.resetGame = () => location.reload();
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update();
+            outlineEffect.render(scene, camera);
+        }
+        animate();
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            outlineEffect.setSize(window.innerWidth, window.innerHeight);
+        });
+    </script>
+</body>
+</html>
