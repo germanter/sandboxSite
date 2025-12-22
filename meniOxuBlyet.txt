@@ -29,3 +29,7 @@ sen neylemelisen part = teze oyun getirende global.js e ekleyirsen list artiq gl
 
 niye -> cunku artiq holder de index de oyunlari cagirmaya ehtiyaci var 
 buna gore merkezi yer globaldi ikiside ordan datayi ve funksiyani cekir
+
+---- eye huseyne not -> deploy edende dinonu take down et -> google adsense reklami verenden sora
+--- dinoyu tamamile ferqli adnan + disclaimer = inspired by chrome offline runnner yazaraq verenden
+---- DEPLOYDA DINO TAKE DOWN--------
