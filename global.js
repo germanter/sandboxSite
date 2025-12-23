@@ -118,7 +118,7 @@ function shuffleArray(array) {
 async function safeNavigate(targetUrl) {
   // 1. Önce tarayıcının online durumuna bak (Hızlı kontrol)
     if (!navigator.onLine) {
-        window.location.href = '/connectionLost.html';        
+        showOfflineScreen();        
         return;
     }
 
@@ -133,11 +133,11 @@ async function safeNavigate(targetUrl) {
         if (response.ok) {
             window.location.href = targetUrl;
         } else {
-            window.location.href = '/connectionLost.html';        
+           showOfflineScreen();        
         }
     } catch (error) {
         // İnternet yoksa kullanıcıyı uyar veya bir 'lost-connection' sayfasına at
-        window.location.href = '/connectionLost.html';
+        showOfflineScreen();
         // İstersen: window.location.href = "/connection-lost.html";
     }
 }
@@ -211,4 +211,232 @@ export function renderGames(containerId, limit = null){
     grid.appendChild(card);
   });
 }
+
+
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+function showOfflineScreen() {
+    // Sayfadaki her şeyi temizle ve senin şık tasarımını bas
+    document.documentElement.innerHTML = `
+    <!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connection Lost - Dumbux</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+                'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #f5f3ff 0%, #f0f9ff 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 16px;
+            padding: 60px 40px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.08);
+            text-align: center;
+            max-width: 500px;
+            width: 100%;
+        }
+
+        .icon {
+            width: 120px;
+            height: 120px;
+            margin: 0 auto 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 60px;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+            50% {
+                opacity: 0.7;
+                transform: scale(0.95);
+            }
+        }
+
+        h1 {
+            font-size: 28px;
+            color: #1a202c;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+
+        .subtitle {
+            font-size: 16px;
+            color: #718096;
+            margin-bottom: 10px;
+            line-height: 1.6;
+        }
+
+        .error-code {
+            display: inline-block;
+            background: #edf2f7;
+            padding: 8px 16px;
+            border-radius: 8px;
+            color: #667eea;
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 30px;
+        }
+
+        .description {
+            color: #4a5568;
+            font-size: 15px;
+            margin-bottom: 40px;
+            line-height: 1.7;
+        }
+
+        .button-wrapper {
+            display: flex;
+            gap: 12px;
+            flex-direction: column;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        .btn-primary:active {
+            transform: translateY(0);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: #667eea;
+            border: 2px solid #667eea;
+            padding: 12px 32px;
+            font-size: 16px;
+            font-weight: 600;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-secondary:hover {
+            background: #f5f3ff;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary:active {
+            transform: translateY(0);
+        }
+
+        /* Mobile Styles */
+        @media (max-width: 640px) {
+            .container {
+                padding: 40px 24px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .icon {
+                width: 100px;
+                height: 100px;
+                font-size: 50px;
+            }
+
+            .subtitle {
+                font-size: 15px;
+            }
+
+            .btn-primary,
+            .btn-secondary {
+                padding: 12px 24px;
+                font-size: 15px;
+            }
+
+            .description {
+                font-size: 14px;
+            }
+        }
+
+        /* Tablet/Desktop Styles */
+        @media (min-width: 641px) {
+            .button-wrapper {
+                flex-direction: row;
+                justify-content: center;
+            }
+
+            .btn-primary,
+            .btn-secondary {
+                flex: 0 1 auto;
+                min-width: 150px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="icon">📡</div>
+        
+        <h1>Connection Lost</h1>
+        <p class="subtitle">Oops! Something went wrong</p>
+        
+        <div class="error-code">ERROR 503</div>
+        
+        <p class="description">
+            It looks like your internet connection is unstable or our server is temporarily unavailable. Don't worry, we're working to get things back online!
+        </p>
+
+        <div class="button-wrapper">
+            <button class="btn-primary" onclick="retryConnection()">
+                🔄 Try Again
+            </button>
+        </div>
+    </div>
+
+    <script>
+        function retryConnection() {
+            // Reload the page
+            location.reload();
+        }
+    </script>
+</body>
+</html>
+`;
+}
+
+
+
+
+
 
