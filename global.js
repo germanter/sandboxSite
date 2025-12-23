@@ -118,7 +118,7 @@ function shuffleArray(array) {
 async function safeNavigate(targetUrl) {
   // 1. Önce tarayıcının online durumuna bak (Hızlı kontrol)
     if (!navigator.onLine) {
-        alert("To Load The Games You Need Internet.");;
+        window.location.href = '/connectionLost.html';        
         return;
     }
 
@@ -133,11 +133,11 @@ async function safeNavigate(targetUrl) {
         if (response.ok) {
             window.location.href = targetUrl;
         } else {
-            throw new Error("Poor Connection"); 
+            window.location.href = '/connectionLost.html';        
         }
     } catch (error) {
         // İnternet yoksa kullanıcıyı uyar veya bir 'lost-connection' sayfasına at
-        alert("To Load The Games You Need Internet.");
+        window.location.href = '/connectionLost.html';
         // İstersen: window.location.href = "/connection-lost.html";
     }
 }
