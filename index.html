@@ -36,18 +36,41 @@
         .floating {
             animation: float 3s ease-in-out infinite;
         }
+
+        /* Navbar için hafif cam efekti */
+        .glass-nav {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(12px);
+            border-bottom: 1px solid rgba(226, 232, 240, 0.8);
+        }
     </style>
 </head>
 <body class="bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 min-h-screen py-12 px-2 md:px-4">
     <div class="max-w-7xl mx-auto">
 
-        <!--send it panel-->
-        <div class="absolute top-4 right-4 md:top-6 md:right-6 z-50 flex flex-col items-end">
-            <button id="sendItBtn" class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-5 py-2 rounded-full font-bold shadow-lg hover:scale-105 transition-all duration-300 active:scale-95 text-sm md:text-base border border-white/20">
-                🚀 Send It
+    <!-- Header -->
+<header class="fixed top-0 left-0 right-0 z-[100] glass-nav shadow-sm">
+    <div class="max-w-7xl mx-auto px-4 h-16 md:h-24 flex items-center justify-between">
+        
+        <a href="index.html" class="flex items-center gap-3 md:gap-5 hover:opacity-80 transition-opacity cursor-pointer">
+            <img src="/assets/logo.ico" alt="Logo" class="w-8 h-8 md:w-12 md:h-12 object-contain border rounded">
+            <div class="flex flex-col md:flex-row md:items-baseline md:gap-3">
+                <span class="text-xl md:text-3xl font-extrabold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
+                    Dumbux
+                </span>
+                <span class="text-slate-400 hidden sm:block">|</span>
+                <span class="text-slate-500 text-sm md:text-lg font-medium">
+                    Messy SandBox
+                </span>
+            </div>
+        </a>
+
+        <div class="relative">
+            <button id="sendItBtn" class="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2 md:px-7 md:py-3 rounded-full font-bold shadow-lg hover:scale-105 transition-all duration-300 active:scale-95 text-xs md:text-base border border-white/20 flex items-center gap-2">
+                <span>🚀 Send It</span> 
             </button>
 
-            <div id="emailPanel" class="hidden mt-3 bg-white/95 backdrop-blur-md border border-indigo-100 p-5 rounded-2xl shadow-2xl max-w-[280px] animate-in fade-in slide-in-from-top-2 duration-300">
+            <div id="emailPanel" class="hidden absolute right-0 mt-4 bg-white/95 backdrop-blur-md border border-indigo-100 p-5 rounded-2xl shadow-2xl min-w-[280px] animate-in fade-in slide-in-from-top-2 duration-300">
                 <div class="flex justify-between items-start mb-2">
                     <p class="text-slate-600 text-sm font-semibold">Share your chaos!</p>
                     <button id="closePanel" class="text-slate-400 hover:text-slate-600 text-xs p-1">Close</button>
@@ -63,14 +86,18 @@
             </div>
         </div>
 
+    </div>
+</header>
 
-        <!-- Header -->
-        <header class="text-center mb-16">
-            <h1 class="text-5xl md:text-6xl font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 bg-clip-text text-transparent mb-4">
-                Dumbux - Messy SandBox
-            </h1>
-            <p class="text-slate-600 text-lg">Choose your creative chaos experience</p>
-        </header>
+                
+
+    <main class="max-w-7xl mx-auto px-2 md:px-4 py-8">
+
+        <div class="text-center mt-4 md:mt-8 mb-4">
+            <p class="text-slate-500 text-sm md:text-base lg:text-lg font-medium tracking-tight">
+                Choose your creative chaos experience
+            </p>
+        </div>
 
         <!-- Main Container -->
         <div class="bg-white rounded-3xl shadow-2xl p-3 md:p-12">
@@ -101,6 +128,7 @@
             </p>
         </footer>
     </div>
+    </main>
     <script type="module" src="main.js"></script>
 </body>
 </html>
