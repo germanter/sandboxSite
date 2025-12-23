@@ -114,14 +114,28 @@ function shuffleArray(array) {
   return array;
 }
 
+// 1. Sayfanın offline modda olup olmadığını takip eden bir bayrak (flag)
+let isOfflineMode = false;
+
 window.addEventListener('pageshow', function(event) {
-    // Eğer sayfa tarayıcı önbelleğinden (cache) yüklendiyse veya normal yüklendiyse
-    // Hemen internet kontrolünü tetikle
+    // Eğer zaten offline ekranındaysak, kontrolü tekrar çalıştırma (Döngüyü kırar)
+    if (isOfflineMode) return;
+    
     if (typeof safeNavigate === 'function') {
-        // Parametre vermiyoruz çünkü yönlendirme değil, sadece check istiyoruz
-        safeNavigate();
+        // Sadece kontrol amaçlı çağırıyoruz
+        checkConnectionQuietly();
     }
 });
+
+// Sadece arka planda kontrol yapan sessiz fonksiyon
+async function checkConnectionQuietly() {
+    if (!navigator.onLine) {
+        isOfflineMode = true; // Bayrağı kaldır
+        showOfflineScreen();
+        return;
+    }
+    // Ping testi... (isteğe bağlı ama güvenli)
+}
 
 
 async function safeNavigate(targetUrl) {
