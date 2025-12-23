@@ -127,11 +127,11 @@ async function safeNavigate(targetUrl) {
         if (response.ok) {
             window.location.href = targetUrl;
         } else {
-            throw new Error("Poor Connection");
+            throw new Error("Poor Connection"); 
         }
     } catch (error) {
         // İnternet yoksa kullanıcıyı uyar veya bir 'lost-connection' sayfasına at
-        alert("To Load The Games You Need Internet");
+        alert("To Load The Games You Need Internet.");
         // İstersen: window.location.href = "/connection-lost.html";
     }
 }
