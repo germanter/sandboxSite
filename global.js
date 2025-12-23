@@ -118,10 +118,10 @@ function shuffleArray(array) {
 async function safeNavigate(targetUrl) {
   // 1. Önce tarayıcının online durumuna bak (Hızlı kontrol)
     if (!navigator.onLine) {
-        showOfflineScreen();
+        alert("To Load The Games You Need Internet.");;
         return;
     }
-    
+
     try {
         // Sunucudan çok küçük bir parça çekerek gerçek bağlantıyı test et
         // 'no-store' ile cache'i devre dışı bırakıyoruz ki gerçek sonuç gelsin
