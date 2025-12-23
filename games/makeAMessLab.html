@@ -57,6 +57,7 @@
         <h3 style="margin:0 0 8px 0; font-size:16px;">Physics Lab</h3>
         <button class="spawn-btn" id="btn-box">Spawn Box</button>
         <button class="spawn-btn" id="btn-sphere">Spawn Sphere</button>
+        <button class="spawn-btn" id="btn-bottle">Spawn Bottle</button>
         <button id="btn-color">Random Color</button>
         <button class="reset-btn" id="btn-clear">Clear All</button>
 
@@ -233,6 +234,8 @@
                 objects.forEach(o => o.mesh.material.color.setHex(Math.random()*0xffffff));
             };
 
+            document.getElementById('btn-bottle').onclick = spawnBottle;
+
             // UI toggle for mobile
             uiToggle.addEventListener('click', () => {
                 uiPanel.classList.toggle('collapsed');
@@ -264,43 +267,39 @@
             return raycaster.intersectObjects(objects.map(o => o.mesh));
         }
 
-        function onPointerDown(e) {
-            // Only handle primary pointer (ignore multi-touch extra pointers)
-            if (!e.isPrimary) return;
+function onPointerDown(e) {
+    if (!e.isPrimary) return;
 
-            // If clicked on UI -> ignore
-            // Use elementFromPoint to be robust when UI is overlay
-            const el = document.elementFromPoint(e.clientX, e.clientY);
-            if (el && el.closest && el.closest('#ui-panel')) return;
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    if (el && el.closest && el.closest('#ui-panel')) return;
 
-            e.preventDefault();
+    e.preventDefault();
 
-            const intersects = intersectObjectsFromPointer(e.clientX, e.clientY);
-            if (intersects.length > 0) {
-                controls.enabled = false;
-                const hit = intersects[0];
-                const item = objects.find(o => o.mesh === hit.object);
-                draggedBody = item.body;
+    const intersects = intersectObjectsFromPointer(e.clientX, e.clientY);
+    if (intersects.length > 0) {
+        controls.enabled = false;
+        const hit = intersects[0];
+        
+        // DÜZELTME: Tıklanan parça bir grubun içindeyse, o grubu 'objects' listesinde bulur
+        const item = objects.find(o => o.mesh === hit.object || o.mesh.children.includes(hit.object));
+        
+        if (item) {
+            draggedBody = item.body;
+            dragPlane.position.copy(hit.point);
+            dragPlane.quaternion.copy(camera.quaternion);
 
-                // place dragPlane at intersection and face camera
-                dragPlane.position.copy(hit.point);
-                dragPlane.quaternion.copy(camera.quaternion);
+            dragBody = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC });
+            dragBody.position.copy(hit.point);
+            world.addBody(dragBody);
 
-                // create kinematic drag body at point
-                dragBody = new CANNON.Body({ mass: 0, type: CANNON.Body.KINEMATIC });
-                dragBody.position.copy(hit.point);
-                world.addBody(dragBody);
+            const localPivot = new CANNON.Vec3();
+            draggedBody.pointToLocalFrame(new CANNON.Vec3(hit.point.x, hit.point.y, hit.point.z), localPivot);
 
-                // local pivot in object's frame
-                const localPivot = new CANNON.Vec3();
-                draggedBody.pointToLocalFrame(new CANNON.Vec3(hit.point.x, hit.point.y, hit.point.z), localPivot);
-
-                dragConstraint = new CANNON.PointToPointConstraint(dragBody, new CANNON.Vec3(0,0,0), draggedBody, localPivot);
-                world.addConstraint(dragConstraint);
-            } else {
-                // no object hit -> let orbitcontrols handle rotation (do nothing)
-            }
+            dragConstraint = new CANNON.PointToPointConstraint(dragBody, new CANNON.Vec3(0,0,0), draggedBody, localPivot);
+            world.addConstraint(dragConstraint);
         }
+    }
+}
 
         function onPointerMove(e) {
             if (!e.isPrimary) return;
@@ -345,6 +344,41 @@
             controls.update();
             renderer.render(scene, camera);
         }
+
+function spawnBottle() {
+    const pos = { x: (Math.random()-0.5)*4, y: 5 + Math.random()*2, z: (Math.random()-0.5)*4 };
+    const color = Math.random()*0xffffff;
+
+    const group = new THREE.Group();
+    const mat = new THREE.MeshStandardMaterial({ color: color });
+
+    // Gövde
+    const bodyGeo = new THREE.CylinderGeometry(0.35, 0.35, 1.2, 16);
+    const bodyMesh = new THREE.Mesh(bodyGeo, mat);
+    bodyMesh.castShadow = true;
+    group.add(bodyMesh);
+
+    // Boyun
+    const neckGeo = new THREE.CylinderGeometry(0.12, 0.12, 0.5, 16);
+    const neckMesh = new THREE.Mesh(neckGeo, mat);
+    neckMesh.position.y = 0.85; 
+    neckMesh.castShadow = true;
+    group.add(neckMesh);
+
+    scene.add(group);
+
+    // Fizik
+    const body = new CANNON.Body({ mass: 1 });
+    const bodyShape = new CANNON.Cylinder(0.35, 0.35, 1.2, 16);
+    body.addShape(bodyShape);
+    const neckShape = new CANNON.Cylinder(0.12, 0.12, 0.5, 16);
+    body.addShape(neckShape, new CANNON.Vec3(0, 0.85, 0));
+
+    body.position.copy(pos);
+    world.addBody(body);
+
+    objects.push({ mesh: group, body: body });
+}
     </script>
 </body>
 </html>
