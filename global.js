@@ -418,18 +418,12 @@ function showOfflineScreen() {
         </p>
 
         <div class="button-wrapper">
-            <button class="btn-primary" onclick="retryConnection()">
+            <button class="btn-primary" onclick="window.location.reload();">
                 🔄 Try Again
             </button>
         </div>
     </div>
 
-    <script>
-        function retryConnection() {
-            // Reload the page
-            location.reload();
-        }
-    </script>
 </body>
 </html>
 `;
