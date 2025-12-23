@@ -119,7 +119,7 @@ async function safeNavigate(targetUrl) {
     try {
         // Sunucudan çok küçük bir parça çekerek gerçek bağlantıyı test et
         // 'no-store' ile cache'i devre dışı bırakıyoruz ki gerçek sonuç gelsin
-        const response = await fetch('assets/logo.ico', { 
+        const response = await fetch('/assets/logo.ico', { 
             method: 'HEAD', 
             cache: 'no-store' 
         });
