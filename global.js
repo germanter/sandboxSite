@@ -114,6 +114,15 @@ function shuffleArray(array) {
   return array;
 }
 
+window.addEventListener('pageshow', function(event) {
+    // Eğer sayfa tarayıcı önbelleğinden (cache) yüklendiyse veya normal yüklendiyse
+    // Hemen internet kontrolünü tetikle
+    if (typeof safeNavigate === 'function') {
+        // Parametre vermiyoruz çünkü yönlendirme değil, sadece check istiyoruz
+        safeNavigate();
+    }
+});
+
 
 async function safeNavigate(targetUrl) {
   // 1. Önce tarayıcının online durumuna bak (Hızlı kontrol)
