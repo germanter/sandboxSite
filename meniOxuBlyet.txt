@@ -33,3 +33,8 @@ buna gore merkezi yer globaldi ikiside ordan datayi ve funksiyani cekir
 ---- eye huseyne not -> deploy edende dinonu take down et -> google adsense reklami verenden sora
 --- dinoyu tamamile ferqli adnan + disclaimer = inspired by chrome offline runnner yazaraq verenden
 ---- DEPLOYDA DINO TAKE DOWN--------
+
+
+----proje hakkinda key detay , vercel edilen pushu pull elemeycin tek yetkili olarak germanter hesabini gorur ->
+yani nesir ne qeder isteyir push atsin , olarak yigilacak stack kimi -> men 1 push ataciyam -> hammisi push edilecek
+bu gatekeeping di eksini qurmaycin vercel upgrade almay lazimdi yadaki prayektin securitysi hamamda tursu xiyar yeyen dayi olar
