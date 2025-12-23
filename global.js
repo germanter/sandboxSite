@@ -114,6 +114,32 @@ function shuffleArray(array) {
   return array;
 }
 
+
+async function safeNavigate(targetUrl) {
+    try {
+        // Sunucudan çok küçük bir parça çekerek gerçek bağlantıyı test et
+        // 'no-store' ile cache'i devre dışı bırakıyoruz ki gerçek sonuç gelsin
+        const response = await fetch('assets/logo.ico', { 
+            method: 'HEAD', 
+            cache: 'no-store' 
+        });
+
+        if (response.ok) {
+            window.location.href = targetUrl;
+        } else {
+            throw new Error("Bağlantı zayıf");
+        }
+    } catch (error) {
+        // İnternet yoksa kullanıcıyı uyar veya bir 'lost-connection' sayfasına at
+        alert("Oyunları yükleyebilmek için internet bağlantınızın olması gerekmektedir.");
+        // İstersen: window.location.href = "/connection-lost.html";
+    }
+}
+
+// HTML'den erişebilmek için window objesine bağla
+window.safeNavigate = safeNavigate;
+
+
 export function renderGames(containerId, limit = null){
   const grid = document.getElementById(containerId);
   
@@ -171,7 +197,7 @@ export function renderGames(containerId, limit = null){
 
       <button 
         class="w-full bg-${color}-600 hover:bg-${color}-700 text-white font-semibold py-3 rounded-xl transition-colors"
-        onclick="location.href='${holderUrl}'">
+        onclick="safeNavigate('${holderUrl}')">
         Play Now
       </button>
     `;
