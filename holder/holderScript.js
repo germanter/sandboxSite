@@ -28,26 +28,50 @@ function setupEmailPanel() {
 }
 
 
-document.addEventListener("DOMContentLoaded", ()=> {
+document.addEventListener("DOMContentLoaded", () => {
     const params = new URLSearchParams(window.location.search);
     const title = params.get('title');
     const gameUrl = params.get('gameUrl');
+    const gameDesc = params.get("gameDesc") || "No description provided for this mess.";
 
     if (title && gameUrl) {
-        // Sayfa ve Header başlığını güncelle
-        document.title = title + " - SIMUX";
+        document.title = title + " - Dumbux";
         document.getElementById('game-title-display').innerText = title;
-        
-        // Iframe'e oyunu yükle. 
-        // gameUrl "games/oyun.html" şeklinde geldiği için bir üst klasöre çıkıp games'e girmeli
         document.getElementById('sandbox-frame').src = gameUrl;
+
+        // --- HAVALI DESC RENDER SİSTEMİ ---
+        const descContainer = document.getElementById('descText');
+        
+        // Cümleleri böl (Nokta, ünlem veya soru işaretinden sonra böl)
+        // Sonra her bir cümleyi temizle ve boş olmayanları al
+        const sentences = gameDesc.split(/(?<=[.!?])\s+/).filter(s => s.trim().length > 0);
+
+        descContainer.innerHTML = `
+            <div class="flex flex-col gap-6 w-full">
+                <div class="flex items-center gap-3">
+                    <div class="w-2 h-8 bg-indigo-600 rounded-full"></div>
+                    <h2 class="text-2xl md:text-3xl font-extrabold text-slate-800">
+                        About <span class="text-indigo-600">${title}</span>
+                    </h2>
+                </div>
+
+                <div class="flex flex-col gap-3">
+                    ${sentences.map(sentence => `
+                        <div class="flex gap-4 items-start group">
+                            <span class="mt-2 w-1.5 h-1.5 rounded-full bg-indigo-400 group-hover:scale-150 transition-transform"></span>
+                            <p class="text-slate-600 text-base md:text-lg leading-snug font-medium">
+                                ${sentence}
+                            </p>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+
     } else {
-        // Parametre yoksa ana sayfaya güvenli dönüş
         goHome();
     }
 
-     setupEmailPanel();
-
-
-     renderGames("gamesGridForHolder",6)
-    });
+    setupEmailPanel();
+    renderGames("gamesGridForHolder", 6);
+});
