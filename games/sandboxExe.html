@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JS-MOD: Pro Sandbox + Combat</title>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: 'Segoe UI', sans-serif; background: #87CEEB; }
+        canvas { display: block; }
+
+        #crosshair {
+            position: absolute; top: 50%; left: 50%;
+            width: 8px; height: 8px;
+            border: 2px solid white; border-radius: 50%;
+            transform: translate(-50%, -50%); pointer-events: none;
+            z-index: 10;
+        }
+
+        #ui-layer {
+            position: absolute; bottom: 20px; left: 20px;
+            color: white; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            pointer-events: none;
+        }
+
+        #tool-info { font-size: 1.8rem; font-weight: bold; color: #00d4ff; text-transform: uppercase; }
+        #stats { font-size: 1rem; opacity: 0.9; }
+        #ammo-ui { font-size: 1.5rem; color: #ffeb3b; display: none; }
+
+        #spawn-menu {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(5px);
+            display: none; justify-content: center; align-items: center; z-index: 100;
+        }
+        .menu-content {
+            background: #1a1a1a; border: 2px solid #00d4ff; padding: 25px;
+            border-radius: 12px; width: 450px; color: white; box-shadow: 0 0 20px rgba(0,212,255,0.3);
+        }
+        .menu-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px; }
+        button {
+            padding: 12px; background: #333; color: white; border: 1px solid #444;
+            cursor: pointer; font-size: 1rem; transition: all 0.2s; border-radius: 4px;
+        }
+        button:hover { background: #00d4ff; color: black; font-weight: bold; }
+
+        #instructions {
+            position: absolute; top: 10px; right: 10px; color: white;
+            background: rgba(0,0,0,0.6); padding: 15px; border-radius: 8px; font-size: 13px; line-height: 1.5;
+        }
+        .tool-hint { color: #ffeb3b; font-weight: bold; margin-top: 5px; }
+    </style>
+</head>
+<body>
+
+<div id="crosshair"></div>
+
+<div id="ui-layer">
+    <div id="tool-info">HOLDER</div>
+    <div id="ammo-ui">AMMO: <span id="ammo-count">30</span>/30</div>
+    <div id="stats">FPS: <span id="fps">60</span> | Objects: <span id="obj-count">0</span></div>
+    <div id="click-hint" class="tool-hint"></div>
+</div>
+
+<div id="instructions">
+    <b>WASD + SHIFT</b> Move | <b>SPACE</b> Jump<br>
+    <b>Q</b> Menu | <b>1-6</b> Select Tool<br>
+    <b>LEFT CLICK</b> Use | <b>R</b> Reload (Rifle)<br>
+    <b>SCROLL</b> Distance (Holder)
+</div>
+
+<div id="spawn-menu">
+    <div class="menu-content">
+        <h2 style="margin-top:0">SPAWN PROPS</h2>
+        <div class="menu-grid">
+            <button onclick="spawnProp('cube')">Cube</button>
+            <button onclick="spawnProp('sphere')">Ball</button>
+            <button onclick="spawnProp('cylinder')">Pillar</button>
+            <button onclick="spawnProp('ramp')">Ramp</button>
+            <button onclick="spawnProp('wall')">Wall</button>
+        </div>
+        <p style="font-size: 0.8rem; margin-top: 20px; color: #aaa;">Press Q to close</p>
+    </div>
+</div>
+
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+            "cannon-es": "https://unpkg.com/cannon-es@0.20.0/dist/cannon-es.js"
+        }
+    }
+</script>
+
+<script type="module">
+    import * as THREE from 'three';
+    import * as CANNON from 'cannon-es';
+
+    // --- Config ---
+    const GRAVITY = -18;
+    const WALK_SPEED = 15;
+    const RUN_SPEED = 22;
+    const JUMP_FORCE = 8;
+    
+    let scene, camera, renderer, world, clock;
+    let playerBody, props = [], wires = [];
+    let isLocked = false;
+    let toolMode = 'holder'; 
+    const keys = {};
+    let pitch = 0, yaw = 0;
+
+    // Tool States
+    let heldBody = null, heldDistance = 6, heldConstraint = null, dummyAnchor;
+    let multiSelectBuffer = null; 
+
+    // Rifle System
+    let weaponGroup, muzzleFlash, ammo = 30, isReloading = false, lastFireTime = 0;
+    const FIRE_RATE = 0.1; // Seconds between shots
+    let weaponBob = 0, recoilVelocity = 0, recoilRotation = 0;
+
+    // Physics Reliability Settings
+    const PHYSICS_STEP = 1/60;
+    const SOLVER_ITERATIONS = 20;
+
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    function playSound(freq, type = 'sine', duration = 0.1, volume = 0.1) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(volume, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+        osc.connect(gain); gain.connect(audioCtx.destination);
+        osc.start(); osc.stop(audioCtx.currentTime + duration);
+    }
+
+    function playGunSound() {
+        // Heavy procedural gun sound
+        const duration = 0.15;
+        const osc = audioCtx.createOscillator();
+        const noise = audioCtx.createBufferSource();
+        const gain = audioCtx.createGain();
+        
+        osc.type = 'sawtooth';
+        osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(40, audioCtx.currentTime + duration);
+
+        const bufferSize = audioCtx.sampleRate * duration;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+        for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
+        noise.buffer = buffer;
+
+        const filter = audioCtx.createBiquadFilter();
+        filter.type = 'lowpass';
+        filter.frequency.value = 800;
+
+        gain.gain.setValueAtTime(0.3, audioCtx.currentTime);
+        gain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + duration);
+
+        osc.connect(filter);
+        noise.connect(filter);
+        filter.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start(); noise.start();
+        osc.stop(audioCtx.currentTime + duration);
+    }
+
+    function init() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87CEEB); 
+        scene.fog = new THREE.Fog(0x87CEEB, 20, 150);
+
+        camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        document.body.appendChild(renderer.domElement);
+
+        clock = new THREE.Clock();
+        world = new CANNON.World();
+        world.gravity.set(0, GRAVITY, 0);
+        world.solver.iterations = SOLVER_ITERATIONS;
+
+        const ambient = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambient);
+        const sun = new THREE.DirectionalLight(0xffffff, 1.2);
+        sun.position.set(50, 100, 30);
+        sun.castShadow = true;
+        scene.add(sun);
+
+        const groundGeo = new THREE.PlaneGeometry(500, 500);
+        const groundMat = new THREE.MeshStandardMaterial({ color: 0x448822 });
+        const ground = new THREE.Mesh(groundGeo, groundMat);
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        const groundBody = new CANNON.Body({ mass: 0, shape: new CANNON.Plane() });
+        groundBody.quaternion.setFromAxisAngle(new CANNON.Vec3(1, 0, 0), -Math.PI / 2);
+        world.addBody(groundBody);
+
+        playerBody = new CANNON.Body({
+            mass: 80, shape: new CANNON.Sphere(0.7), 
+            fixedRotation: true, linearDamping: 0.9
+        });
+        playerBody.position.set(0, 2, 0);
+        world.addBody(playerBody);
+
+        dummyAnchor = new CANNON.Body({ mass: 0 });
+        dummyAnchor.collisionFilterGroup = 0;
+        dummyAnchor.collisionFilterMask = 0;
+        world.addBody(dummyAnchor);
+
+        createWeapon();
+        setupEventListeners();
+        buildDefaultHouse();
+        animate();
+    }
+
+    function createWeapon() {
+        weaponGroup = new THREE.Group();
+        
+        // Arms
+        const armMat = new THREE.MeshStandardMaterial({ color: 0xe0ac69 });
+        const rightArm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.8), armMat);
+        rightArm.position.set(0.35, -0.4, -0.4);
+        rightArm.rotation.x = -0.2;
+        
+        const leftArm = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.7), armMat);
+        leftArm.position.set(-0.3, -0.4, -0.5);
+        leftArm.rotation.y = 0.4;
+        leftArm.rotation.x = -0.3;
+
+        // Rifle Body
+        const gunMat = new THREE.MeshStandardMaterial({ color: 0x222222 });
+        const body = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.22, 1.2), gunMat);
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.8), gunMat);
+        barrel.rotation.x = Math.PI / 2;
+        barrel.position.z = -0.9;
+        
+        const mag = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 0.15), gunMat);
+        mag.position.set(0, -0.25, -0.3);
+        mag.rotation.x = 0.2;
+
+        const stock = new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.25, 0.4), gunMat);
+        stock.position.z = 0.7;
+
+        const weaponMesh = new THREE.Group();
+        weaponMesh.add(body, barrel, mag, stock);
+        weaponMesh.position.set(0.25, -0.3, -0.7);
+
+        // Muzzle Flash
+        const flashGeo = new THREE.SphereGeometry(0.15, 8, 8);
+        const flashMat = new THREE.MeshBasicMaterial({ color: 0xffaa00, transparent: true, opacity: 0 });
+        muzzleFlash = new THREE.Mesh(flashGeo, flashMat);
+        muzzleFlash.position.set(0.25, -0.3, -1.8);
+
+        weaponGroup.add(rightArm, leftArm, weaponMesh, muzzleFlash);
+        scene.add(weaponGroup);
+        weaponGroup.visible = false;
+    }
+
+    function setupEventListeners() {
+        window.addEventListener('keydown', (e) => {
+            keys[e.code] = true;
+            if(e.code === 'KeyQ') toggleSpawnMenu();
+            if(e.code === 'Digit1') setTool('holder');
+            if(e.code === 'Digit2') setTool('merger');
+            if(e.code === 'Digit3') setTool('wire');
+            if(e.code === 'Digit4') setTool('icer');
+            if(e.code === 'Digit5') setTool('remover');
+            if(e.code === 'Digit6') setTool('rifle');
+            if(e.code === 'KeyR') reload();
+        });
+        window.addEventListener('keyup', (e) => keys[e.code] = false);
+
+        document.addEventListener('mousemove', (e) => {
+            if (isLocked) {
+                yaw -= e.movementX * 0.002;
+                pitch -= e.movementY * 0.002;
+                pitch = Math.max(-1.5, Math.min(1.5, pitch));
+            }
+        });
+
+        renderer.domElement.addEventListener('mousedown', (e) => {
+            if (!isLocked) renderer.domElement.requestPointerLock();
+            else if (e.button === 0) {
+                if (toolMode !== 'rifle') handlePrimary();
+            } else if (e.button === 2) handleSecondary();
+        });
+
+        window.addEventListener('wheel', (e) => {
+            if (heldBody) heldDistance = Math.max(3, Math.min(25, heldDistance - e.deltaY * 0.01));
+        });
+
+        document.addEventListener('pointerlockchange', () => {
+            isLocked = document.pointerLockElement === renderer.domElement;
+        });
+    }
+
+    function setTool(mode) {
+        toolMode = mode;
+        multiSelectBuffer = null;
+        weaponGroup.visible = (mode === 'rifle');
+        document.getElementById('ammo-ui').style.display = (mode === 'rifle') ? 'block' : 'none';
+        
+        const names = {
+            holder: 'HOLDER', merger: 'MERGER', 
+            wire: 'WIRE', icer: 'ICER', remover: 'REMOVER', rifle: 'ASSAULT RIFLE'
+        };
+        document.getElementById('tool-info').innerText = names[mode];
+        document.getElementById('click-hint').innerText = "";
+        playSound(400, 'square', 0.05);
+    }
+
+    function shoot() {
+        if (ammo <= 0) {
+            if (!isReloading) playSound(200, 'sine', 0.05);
+            return;
+        }
+        if (isReloading) return;
+
+        ammo--;
+        document.getElementById('ammo-count').innerText = ammo;
+        playGunSound();
+
+        // Recoil
+        recoilVelocity += 0.15;
+        recoilRotation += 0.1;
+
+        // Muzzle Flash
+        muzzleFlash.material.opacity = 1;
+        setTimeout(() => muzzleFlash.material.opacity = 0, 50);
+
+        // Raycast hit
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+        
+        // Detect hit on props or ground
+        const targets = props.map(p => p.mesh);
+        const intersects = raycaster.intersectObjects(targets);
+
+        if (intersects.length > 0) {
+            const hit = intersects[0];
+            const obj = props.find(p => p.mesh === hit.object);
+            
+            // Apply physics force
+            if (obj && obj.body.type === CANNON.Body.DYNAMIC) {
+                const force = raycaster.ray.direction.clone().multiplyScalar(500);
+                const pos = new CANNON.Vec3(hit.point.x, hit.point.y, hit.point.z);
+                obj.body.applyForce(new CANNON.Vec3(force.x, force.y, force.z), pos);
+            }
+
+            // Create Bullet Hole
+            createBulletHole(hit);
+        }
+    }
+
+    function createBulletHole(hit) {
+        const holeGeo = new THREE.CircleGeometry(0.04, 8);
+        const holeMat = new THREE.MeshBasicMaterial({ color: 0x111111, side: THREE.DoubleSide });
+        const hole = new THREE.Mesh(holeGeo, holeMat);
+        
+        // Position slightly above surface to prevent flickering
+        hole.position.copy(hit.point).add(hit.face.normal.clone().multiplyScalar(0.01));
+        
+        // Orient to surface normal
+        const lookTarget = hit.point.clone().add(hit.face.normal);
+        hole.lookAt(lookTarget);
+
+        // Attach to the hit object so it moves with physics
+        hit.object.add(hole);
+        
+        // Convert world position to local position of the parent object
+        hit.object.worldToLocal(hole.position);
+    }
+
+    function reload() {
+        if (isReloading || ammo === 30) return;
+        isReloading = true;
+        playSound(300, 'square', 0.5, 0.1);
+        setTimeout(() => {
+            ammo = 30;
+            document.getElementById('ammo-count').innerText = ammo;
+            isReloading = false;
+            playSound(600, 'sine', 0.1);
+        }, 1500);
+    }
+
+    function handlePrimary() {
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(new THREE.Vector2(0, 0), camera);
+        const intersects = raycaster.intersectObjects(props.map(p => p.mesh));
+        const hit = intersects[0];
+
+        if (toolMode === 'holder') {
+            if (hit) {
+                const obj = props.find(p => p.mesh === hit.object);
+                grabObject(obj.body, hit.point);
+                playSound(600, 'sine', 0.2);
+            }
+        } 
+        else if (toolMode === 'merger' || toolMode === 'wire') {
+            if (hit) {
+                const obj = props.find(p => p.mesh === hit.object);
+                if (!multiSelectBuffer) {
+                    multiSelectBuffer = obj;
+                    document.getElementById('click-hint').innerText = "Select 2nd object...";
+                    playSound(800);
+                } else if (multiSelectBuffer !== obj) {
+                    if (toolMode === 'merger') createMerger(multiSelectBuffer.body, obj.body);
+                    else createWire(multiSelectBuffer.body, obj.body);
+                    multiSelectBuffer = null;
+                    document.getElementById('click-hint').innerText = "Linked!";
+                    setTimeout(() => document.getElementById('click-hint').innerText = "", 1000);
+                }
+            }
+        }
+        else if (toolMode === 'icer' && hit) {
+            const obj = props.find(p => p.mesh === hit.object);
+            obj.body.type = (obj.body.type === CANNON.Body.STATIC) ? CANNON.Body.DYNAMIC : CANNON.Body.STATIC;
+            obj.mesh.material.emissive.setHex(obj.body.type === CANNON.Body.STATIC ? 0x0055ff : 0x000000);
+            playSound(200, 'sawtooth');
+        }
+        else if (toolMode === 'remover' && hit) {
+            const obj = props.find(p => p.mesh === hit.object);
+            removeProp(obj);
+            playSound(150, 'sawtooth', 0.2);
+        }
+    }
+
+    function handleSecondary() {
+        if (heldBody) {
+            releaseObject();
+            playSound(300, 'sine', 0.1);
+        }
+        multiSelectBuffer = null;
+        document.getElementById('click-hint').innerText = "";
+    }
+
+    function grabObject(body, point) {
+        if(heldConstraint) releaseObject();
+        heldBody = body;
+        heldBody.wakeUp();
+        heldBody.angularDamping = 0.95;
+        heldBody.linearDamping = 0.95;
+        heldDistance = camera.position.distanceTo(new THREE.Vector3(point.x, point.y, point.z));
+        const localPoint = heldBody.pointToLocalFrame(new CANNON.Vec3(point.x, point.y, point.z));
+        heldConstraint = new CANNON.PointToPointConstraint(heldBody, localPoint, dummyAnchor, new CANNON.Vec3(0,0,0));
+        world.addConstraint(heldConstraint);
+    }
+
+    function releaseObject() {
+        if (heldConstraint) { world.removeConstraint(heldConstraint); heldConstraint = null; }
+        if (heldBody) { heldBody.angularDamping = 0.01; heldBody.linearDamping = 0.01; heldBody = null; }
+    }
+
+    function createMerger(bodyA, bodyB) {
+        world.addConstraint(new CANNON.LockConstraint(bodyA, bodyB));
+        playSound(1000, 'square', 0.2);
+    }
+
+    function createWire(bodyA, bodyB) {
+        const dist = bodyA.position.distanceTo(bodyB.position);
+        world.addConstraint(new CANNON.DistanceConstraint(bodyA, bodyB, dist));
+        const geometry = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3()]);
+        const line = new THREE.Line(geometry, new THREE.LineBasicMaterial({ color: 0x222222 }));
+        scene.add(line);
+        wires.push({ line, bodyA, bodyB });
+        playSound(1200, 'sine', 0.3);
+    }
+
+    window.spawnProp = function(type, posOverride = null, rotOverride = null) {
+        let pos = posOverride || new THREE.Vector3(0, 0, -heldDistance).applyQuaternion(camera.quaternion).add(camera.position);
+        let geometry, shape, mass = 10;
+        const color = new THREE.Color().setHSL(Math.random(), 0.8, 0.5);
+
+        switch(type) {
+            case 'cube': geometry = new THREE.BoxGeometry(1, 1, 1); shape = new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5)); break;
+            case 'sphere': geometry = new THREE.SphereGeometry(0.6, 16, 16); shape = new CANNON.Sphere(0.6); break;
+            case 'cylinder': geometry = new THREE.CylinderGeometry(0.5, 0.5, 1.5); shape = new CANNON.Cylinder(0.5,0.5,1.5,16); break;
+            case 'ramp': geometry = new THREE.BoxGeometry(2, 0.5, 4); shape = new CANNON.Box(new CANNON.Vec3(1, 0.25, 2)); mass = 30; break;
+            case 'wall': geometry = new THREE.BoxGeometry(4, 3, 0.3); shape = new CANNON.Box(new CANNON.Vec3(2, 1.5, 0.15)); mass = 50; break;
+        }
+
+        const mesh = new THREE.Mesh(geometry, new THREE.MeshStandardMaterial({ color, roughness: 0.7 }));
+        mesh.castShadow = mesh.receiveShadow = true;
+        scene.add(mesh);
+
+        const body = new CANNON.Body({ mass, shape });
+        body.position.set(pos.x, pos.y, pos.z);
+        if(rotOverride) body.quaternion.copy(rotOverride);
+        world.addBody(body);
+
+        props.push({ mesh, body });
+        document.getElementById('obj-count').innerText = props.length;
+        if(!posOverride) toggleSpawnMenu();
+        return {mesh, body};
+    };
+
+    function removeProp(propObj) {
+        scene.remove(propObj.mesh);
+        world.removeBody(propObj.body);
+        wires = wires.filter(w => {
+            if (w.bodyA === propObj.body || w.bodyB === propObj.body) {
+                scene.remove(w.line);
+                return false;
+            }
+            return true;
+        });
+        props = props.filter(p => p !== propObj);
+    }
+
+    function buildDefaultHouse() {
+        spawnProp('ramp', {x: 10, y: 0.25, z: 10}); 
+        spawnProp('wall', {x: 8, y: 1.5, z: 10}, new CANNON.Quaternion().setFromAxisAngle(new CANNON.Vec3(0,1,0), Math.PI/2));
+        spawnProp('wall', {x: 12, y: 1.5, z: 10}, new CANNON.Quaternion().setFromAxisAngle(new CANNON.Vec3(0,1,0), Math.PI/2));
+        spawnProp('wall', {x: 10, y: 1.5, z: 8});
+    }
+
+    function toggleSpawnMenu() {
+        const menu = document.getElementById('spawn-menu');
+        const isOpen = menu.style.display === 'flex';
+        menu.style.display = isOpen ? 'none' : 'flex';
+        if (isOpen) renderer.domElement.requestPointerLock(); else document.exitPointerLock();
+    }
+
+    function animate() {
+        requestAnimationFrame(animate);
+        const dt = Math.min(clock.getDelta(), 0.1);
+        const time = clock.elapsedTime;
+        
+        world.step(PHYSICS_STEP, dt);
+
+        if (isLocked) {
+            const speed = keys['ShiftLeft'] ? RUN_SPEED : WALK_SPEED;
+            const moveDir = new THREE.Vector3(0, 0, 0);
+            if (keys['KeyW']) moveDir.z -= 1;
+            if (keys['KeyS']) moveDir.z += 1;
+            if (keys['KeyA']) moveDir.x -= 1;
+            if (keys['KeyD']) moveDir.x += 1;
+            
+            moveDir.applyQuaternion(new THREE.Quaternion().setFromEuler(new THREE.Euler(0, yaw, 0))).normalize();
+            playerBody.velocity.x = moveDir.x * speed;
+            playerBody.velocity.z = moveDir.z * speed;
+
+            if (keys['Space'] && Math.abs(playerBody.velocity.y) < 0.5) {
+                playerBody.velocity.y = JUMP_FORCE;
+            }
+
+            // Camera Handling
+            camera.quaternion.setFromEuler(new THREE.Euler(pitch + (recoilRotation * 0.5), yaw, 0, 'YXZ'));
+            camera.position.copy(playerBody.position).y += 0.5;
+
+            // Weapon Logic
+            if (toolMode === 'rifle') {
+                weaponGroup.position.copy(camera.position);
+                weaponGroup.quaternion.copy(camera.quaternion);
+
+                // Bobbing and recoil animation
+                const isMoving = Math.abs(playerBody.velocity.x) > 1 || Math.abs(playerBody.velocity.z) > 1;
+                if (isMoving) weaponBob += dt * 10;
+                
+                const bobX = Math.cos(weaponBob) * 0.02;
+                const bobY = Math.sin(weaponBob * 2) * 0.015;
+                
+                // Recoil recovery
+                recoilRotation *= 0.9;
+                recoilVelocity *= 0.8;
+                
+                weaponGroup.children[2].position.set(0.25 + bobX, -0.3 + bobY, -0.7 + recoilVelocity);
+                weaponGroup.children[2].rotation.x = -recoilRotation;
+
+                // Auto-fire
+                if (window.navigator.maxTouchPoints > 0 || keys['MouseDown'] || (isLocked && keys['LeftClickHold'])) {
+                     // handled below via mouse events for cleaner logic
+                }
+            }
+
+            if (heldBody && heldConstraint) {
+                const target = new THREE.Vector3(0, 0, -heldDistance).applyQuaternion(camera.quaternion).add(camera.position);
+                dummyAnchor.position.copy(target);
+                heldBody.wakeUp();
+            }
+        }
+
+        props.forEach(p => {
+            p.mesh.position.copy(p.body.position);
+            p.mesh.quaternion.copy(p.body.quaternion);
+        });
+
+        wires.forEach(w => {
+            w.line.geometry.setFromPoints([
+                new THREE.Vector3().copy(w.bodyA.position),
+                new THREE.Vector3().copy(w.bodyB.position)
+            ]);
+        });
+
+        renderer.render(scene, camera);
+        if(Math.random() < 0.05) document.getElementById('fps').innerText = Math.round(1/dt);
+    }
+
+    // Auto-firing Logic
+    let mouseDown = false;
+    window.addEventListener('mousedown', (e) => { if(e.button === 0) mouseDown = true; });
+    window.addEventListener('mouseup', (e) => { if(e.button === 0) mouseDown = false; });
+
+    setInterval(() => {
+        if (isLocked && toolMode === 'rifle' && mouseDown && !isReloading) {
+            shoot();
+        }
+    }, FIRE_RATE * 1000);
+
+    init();
+</script>
+
+</body>
+</html>
