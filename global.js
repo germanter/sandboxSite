@@ -78,6 +78,11 @@ const games = [
     desc: "Welcome to the neon-drenched grid of the future. 3D Neon Race is a high-octane, browser-based arcade experience that blends retro-synthwave aesthetics with modern 3D rendering. This isn't just a game; it is a pulse-pounding survival challenge where speed is your only ally and the slightest miscalculation leads to a 'Wasted' screen. Your mission is simple: survive the endless road and rack up the highest score possible. PC Controls: Use the A and D keys or the Left and Right Arrow keys to steer. Mobile: Touch and drag to glide through traffic. Avoid the crimson-pulsing obstacles. As you progress, your speed increases exponentially. Gary Rider: Ultra-Neon is a showcase of efficient HTML5 Canvas utilization and Three.js integration with dynamic rendering, adaptive performance, procedural geometry, custom collision logic, and modern CSS3 UI."
   },
   {
+    title: "Crazy Eagle",
+    link: "/games/crazyEagle.html",
+    imgLink: "https://i.postimg.cc/Cxqf3M43/crazy-Eagle.webp",    
+    desc: "Welcome to the high-altitude hunting grounds of the ultimate sky hunter. Crazy Eagle: Apex Predator is an intense, browser-based arcade combat experience that merges visceral survival mechanics with fluid flight dynamics. This isn't just a flight sim; it's a brutal gauntlet where you must dominate the food chain or be grounded forever. Your mission is simple: navigate through jagged peaks, dive for prey in the deep sea, and intercept hostile drones in restricted airspace to rack up the ultimate score. PC Controls: Use the W and S keys to control your pitch and Click to unleash your lethal talons. Mobile: Use the virtual joystick to soar and the Strike button to hunt. As your momentum builds, the environment shifts and the difficulty scales exponentially to test your predatory instincts. Crazy Eagle is a masterclass in lightweight HTML5 Canvas engineering and Web Audio API integration, featuring procedural terrain generation, dynamic screen-shake effects, custom particle physics, and a fully responsive CSS3 interface."  },
+  {
     title: "3D Chess",
     link: "/games/chess3d.html",
     imgLink: "https://i.postimg.cc/y838Cv9k/chess3d.webp",

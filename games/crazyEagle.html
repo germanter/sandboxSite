@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WAR EAGLE: APEX PREDATOR</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #020205; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; touch-action: none; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        
+        /* UI Scaling for Mobile - UPDATED FOR RESPONSIVENESS */
+        #ui {
+            position: absolute; top: 20px; left: 20px; color: #fff;
+            pointer-events: none; z-index: 100;
+            display: flex; flex-direction: column; gap: 2px;
+        }
+        .score-box { 
+            font-size: clamp(24px, 10vw, 50px); /* Scales down on mobile */
+            font-weight: 900; color: #ffce00; font-style: italic; line-height: 1; 
+        }
+        .kill-box { 
+            font-size: clamp(10px, 4vw, 20px); /* Scales down on mobile */
+            color: #ff003c; font-weight: bold; letter-spacing: 2px; text-transform: uppercase; 
+        }
+        /* Styling for both phase-ui elements */
+        [id="phase-ui"] { 
+            font-size: clamp(8px, 2.5vw, 12px) !important; /* Scales down on mobile */
+            margin-top: 5px;
+        }
+
+        #overlay {
+            position: absolute; inset: 0; background: radial-gradient(circle, rgba(10,10,20,0.8) 0%, rgba(0,0,0,0.98) 100%);
+            display: flex; flex-direction: column; align-items: center; 
+            justify-content: center; z-index: 1000; color: white;
+            text-align: center; padding: 20px;
+        }
+        h1 { font-size: clamp(40px, 15vw, 100px); margin: 0; color: #ff003c; letter-spacing: -2px; transform: skewX(-15deg); text-shadow: 4px 4px 0px #fff; }
+        p { font-size: clamp(12px, 3vw, 18px); color: #666; margin-bottom: 20px; letter-spacing: 4px; text-transform: uppercase; }
+        
+        button {
+            background: #ffce00; border: none; padding: 15px 40px;
+            font-size: clamp(18px, 5vw, 28px); font-weight: 900; cursor: pointer;
+            clip-path: polygon(10% 0, 100% 0, 90% 100%, 0 100%);
+            transition: 0.2s; margin: 10px;
+        }
+        button:hover { background: #fff; transform: scale(1.05); }
+
+        /* Mobile Control Toggle Button */
+        #mobile-toggle-btn {
+            background: #444; color: #eee; font-size: 12px; padding: 10px 20px;
+            clip-path: none; border: 1px solid #666; margin-top: 20px;
+        }
+
+        #hint { position: absolute; bottom: 20px; color: #333; font-size: 10px; letter-spacing: 2px; }
+
+        /* Mobile Controls Styling */
+        #mobile-controls {
+            position: absolute; bottom: 40px; left: 0; width: 100%; height: 150px;
+            display: none; justify-content: space-between; align-items: center;
+            padding: 0 40px; box-sizing: border-box; z-index: 500; pointer-events: none;
+        }
+        
+        .joy-area {
+            width: 120px; height: 120px; background: rgba(255,255,255,0.1);
+            border-radius: 50%; position: relative; pointer-events: auto;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+        #stick {
+            width: 50px; height: 50px; background: #ffce00; border-radius: 50%;
+            position: absolute; left: 35px; top: 35px; transition: transform 0.1s;
+        }
+
+        #mobile-claw-btn {
+            width: 100px; height: 100px; background: #ff003c; border-radius: 50%;
+            pointer-events: auto; display: flex; align-items: center; justify-content: center;
+            font-weight: 900; color: white; border: 5px solid rgba(255,255,255,0.3);
+            box-shadow: 0 0 20px rgba(255, 0, 60, 0.5);
+        }
+
+        @media (max-width: 600px) {
+            #mobile-controls { display: flex; }
+            #ui { top: 10px; left: 10px; } /* Tighter margins for mobile */
+        }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <div class="score-box"><span id="dist-ui">0</span></div>
+    <div class="kill-box">Kills: <span id="kill-ui">0</span></div>
+    <div style="color:#00f2fe; font-weight: bold; text-transform: uppercase;">Click or Tap to throw the claws</div>
+    <div id="phase-ui" style="color:#00f2fe; font-weight: bold;">[ INITIALIZING STRIKE ]</div>
+</div>
+
+<div id="overlay">
+    <h1 id="title">CRAZY EAGLE</h1>
+    <p id="stats">This eagle attacks everything</p>
+    <button onclick="bootGame()">LAUNCH STRIKE</button>
+    <button id="mobile-toggle-btn" onclick="enableMobileUI()">ENABLE MOBILE CONTROLS</button>
+    <div id="hint">W/S: FLIGHT | CLICK: HUNT | AVOID THE JAGGED PEAKS</div>
+</div>
+
+<!-- Mobile Interface -->
+<div id="mobile-controls">
+    <div class="joy-area" id="joy-base">
+        <div id="stick"></div>
+    </div>
+    <div id="mobile-claw-btn">STRIKE</div>
+</div>
+
+<canvas id="c"></canvas>
+
+<script>
+// --- AUDIO SYSTEM START ---
+const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+const snd = {
+    play(freq, type, duration, vol, slide = 0) {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        if (slide) osc.frequency.exponentialRampToValueAtTime(slide, audioCtx.currentTime + duration);
+        gain.gain.setValueAtTime(vol, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + duration);
+    },
+    strike() { this.play(150, 'sawtooth', 0.2, 0.2, 50); },
+    kill() { this.play(100, 'square', 0.4, 0.3, 10); },
+    collect() { this.play(800, 'sine', 0.1, 0.2, 1200); },
+    phase() { this.play(400, 'sine', 0.5, 0.1, 800); },
+    die() { this.play(200, 'sawtooth', 1, 0.4, 10); }
+};
+// --- AUDIO SYSTEM END ---
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const distUi = document.getElementById('dist-ui');
+const killUi = document.getElementById('kill-ui');
+const phaseUi = document.getElementById('phase-ui');
+const overlay = document.getElementById('overlay');
+const mobileControls = document.getElementById('mobile-controls');
+const stick = document.getElementById('stick');
+
+let w, h;
+let state = 'MENU';
+let score = 0, kills = 0, frame = 0;
+let speed = 18; 
+let shake = 0;
+let phase = 'SKY'; 
+
+let nextGapY = 400;
+let obstacles = [];
+let fish = [];
+let splashes = [];
+let enemies = [];
+let drones = [];
+let particles = [];
+let speedLines = [];
+
+const eagle = {
+    x: 200, y: 0,
+    w: 160, h: 80, 
+    vy: 0,
+    rot: 0,
+    wing: 0,
+    clawActive: false,
+    clawTimer: 0,
+    hitRadius: 25, 
+    eyeBlink: 0,
+    eyeBlinkTimer: 80
+};
+
+// Mobile State
+let joyY = 0;
+let isMobileEnabled = false;
+
+function enableMobileUI() {
+    isMobileEnabled = true;
+    mobileControls.style.display = 'flex';
+    document.getElementById('mobile-toggle-btn').style.display = 'none';
+}
+
+function init() {
+    const oldH = h;
+    w = window.innerWidth;
+    h = window.innerHeight;
+    canvas.width = w;
+    canvas.height = h;
+    if (state !== 'MENU' && oldH) {
+        const ratio = eagle.y / oldH;
+        eagle.y = h * ratio;
+    } else {
+        eagle.y = h / 2;
+    }
+}
+
+window.onkeydown = e => keys[e.code] = true;
+window.onkeyup = e => keys[e.code] = false;
+const keys = {};
+
+window.onmousedown = (e) => {
+    if(state === 'PLAYING') {
+        // Prevent strike when clicking the enable button
+        if(e.target.id === 'mobile-toggle-btn') return;
+        eagle.clawActive = true;
+        eagle.clawTimer = 25;
+        snd.strike(); 
+    }
+}
+
+// Mobile Input Handling
+const joyBase = document.getElementById('joy-base');
+const clawBtn = document.getElementById('mobile-claw-btn');
+
+joyBase.addEventListener('touchmove', e => {
+    e.preventDefault();
+    const touch = e.touches[0];
+    const rect = joyBase.getBoundingClientRect();
+    const centerX = rect.left + rect.width/2;
+    const centerY = rect.top + rect.height/2;
+    let dy = touch.clientY - centerY;
+    dy = Math.max(-50, Math.min(50, dy));
+    joyY = dy / 50; // -1 to 1
+    stick.style.transform = `translateY(${dy}px)`;
+});
+
+joyBase.addEventListener('touchend', () => {
+    joyY = 0;
+    stick.style.transform = `translateY(0px)`;
+});
+
+clawBtn.addEventListener('touchstart', (e) => {
+    e.preventDefault();
+    if(state === 'PLAYING') {
+        eagle.clawActive = true;
+        eagle.clawTimer = 25;
+        snd.strike();
+    }
+});
+
+function spawnParticles(x, y, color, count) {
+    for(let i=0; i<count; i++) {
+        particles.push({
+            x, y, 
+            vx: (Math.random()-0.5)*15, 
+            vy: (Math.random()-0.5)*15, 
+            life: 1, 
+            color: color
+        });
+    }
+}
+
+function bootGame() {
+    if (audioCtx.state === 'suspended') audioCtx.resume(); 
+    snd.phase(); 
+    score = 0; kills = 0; frame = 0;
+    obstacles = []; fish = []; splashes = []; enemies = []; drones = []; particles = [];
+    eagle.y = h / 2; eagle.vy = 0;
+    state = 'IDLE';
+    overlay.style.display = 'none';
+    speed = 18;
+    phase = 'SKY';
+}
+
+function spawnObstaclePair() {
+    const minGap = 260; 
+    const maxShift = 220; 
+    nextGapY += (Math.random() - 0.5) * maxShift * 2;
+    if(nextGapY < 200) nextGapY = 200;
+    if(nextGapY > h - 200) nextGapY = h - 200;
+    const jagged = () => [(Math.random()-0.5)*40, (Math.random()-0.5)*40, (Math.random()-0.5)*40, (Math.random()-0.5)*40];
+    obstacles.push({ x: w + 300, y: 0, w: 160, h: nextGapY - (minGap/2), type: 'top', noise: jagged() });
+    obstacles.push({ x: w + 300, y: nextGapY + (minGap/2), w: 160, h: h - (nextGapY + (minGap/2)), type: 'bottom', noise: jagged() });
+}
+
+function update() {
+    if(state === 'MENU' || state === 'DEAD') return;
+    if(state === 'IDLE') {
+        if(keys['KeyW'] || joyY < -0.2) state = 'PLAYING';
+        return;
+    }
+
+    frame++;
+    score += Math.floor(speed / 2);
+    speed = 18 + (score / 15000);
+
+    if(frame % 2 === 0) speedLines.push({ x: w, y: Math.random()*h, len: 20 + Math.random()*50 });
+
+    // Movement: Combined keyboard and joystick
+    if(keys['KeyW'] || joyY < -0.2) eagle.vy -= 1.8;
+    if(keys['KeyS'] || joyY > 0.2) eagle.vy += 1.8;
+    
+    eagle.vy *= 0.94;
+    eagle.y += eagle.vy;
+    eagle.rot = eagle.vy * 0.03;
+
+    eagle.eyeBlinkTimer--;
+    if(eagle.eyeBlinkTimer <= 0) {
+        eagle.eyeBlink = 8; 
+        eagle.eyeBlinkTimer = 100 + Math.random() * 200;
+    }
+    if(eagle.eyeBlink > 0) eagle.eyeBlink--;
+
+    if(eagle.y < -100 || eagle.y > h + 100) die();
+
+    if(frame % 1000 === 0) {
+        snd.phase(); 
+        if(phase === 'SKY') phase = 'SEA';
+        else if(phase === 'SEA') phase = 'ENEMY';
+        else if(phase === 'ENEMY') phase = 'DRONE';
+        else phase = 'SKY';
+        const titles = { 'SKY': '[ ALTITUDE: JAGGED PEAKS ]', 'SEA': '[ ALTITUDE: OCEAN LEVEL ]', 'ENEMY': '[ WARNING: HOSTILE AIRSPACE ]', 'DRONE': '[ TARGET PRACTICE: DRONE ZONE ]' };
+        phaseUi.innerText = titles[phase];
+    }
+
+    if(phase === 'SKY' && frame % 85 === 0) spawnObstaclePair();
+    if(phase === 'SEA' && frame % 25 === 0) {
+        fish.push({ x: w + 100, y: h - 50, vx: -(speed + 10), vy: -25 - Math.random()*12 });
+        splashes.push({ x: w + 100, y: h - 50, r: 20, a: 1 });
+    }
+    if(phase === 'ENEMY' && frame % 90 === 0) {
+        enemies.push({ x: w + 100, y: Math.random() * (h-200) + 100, vy: (Math.random()-0.5)*5, falling: false, rot: 0, blink: 0 });
+    }
+    if(phase === 'DRONE' && frame % 65 === 0) drones.push({ x: w + 100, y: Math.random() * (h-100), falling: false, rot: 0 });
+
+    obstacles.forEach((o, i) => {
+        o.x -= speed;
+        if(eagle.x + 80 + eagle.hitRadius > o.x && eagle.x + 80 - eagle.hitRadius < o.x + o.w &&
+           eagle.y + 40 + eagle.hitRadius > o.y && eagle.y + 40 - eagle.hitRadius < o.y + o.h) die();
+        if(o.x < -300) obstacles.splice(i, 1);
+    });
+
+    if(eagle.clawTimer > 0) eagle.clawTimer--;
+    else eagle.clawActive = false;
+
+    enemies.forEach((e, i) => {
+        if(!e.falling) {
+            e.x -= (speed + 4); e.y += Math.sin(frame * 0.1) * 3;
+            let dx = (eagle.x + 100) - e.x;
+            let dy = (eagle.y + 40) - e.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            if(dist < 85) {
+                if(eagle.clawActive) {
+                    e.falling = true; kills++; score += 5000; shake = 15;
+                    snd.kill(); 
+                    spawnParticles(e.x, e.y, '#ff003c', 15);
+                } else if (dist < 38) {
+                    die();
+                }
+            }
+        } else { e.y += 15; e.x -= 5; e.rot += 0.2; }
+        if(e.x < -200 || e.y > h + 200) enemies.splice(i, 1);
+    });
+
+    drones.forEach((d, i) => {
+        if(!d.falling) {
+            d.x -= (speed + 2);
+            if(Math.sqrt(Math.pow((eagle.x+100)-d.x,2)+Math.pow((eagle.y+40)-d.y,2)) < 65 && eagle.clawActive) {
+                d.falling = true; kills++; score += 2000; shake = 10;
+                snd.kill(); 
+                spawnParticles(d.x, d.y, '#00f2fe', 10);
+            }
+        } else { d.y += 20; d.rot += 0.3; }
+        if(d.x < -200 || d.y > h + 200) drones.splice(i, 1);
+    });
+
+    fish.forEach((f, i) => {
+        f.x += f.vx; f.y += f.vy; f.vy += 0.9;
+        if(eagle.clawActive && Math.sqrt(Math.pow((eagle.x+100)-f.x,2)+Math.pow((eagle.y+60)-f.y,2)) < 80) {
+            fish.splice(i, 1); kills++; score += 10000; shake = 10;
+            snd.collect(); 
+            spawnParticles(f.x, f.y, '#ffce00', 8);
+        }
+        if(f.y > h + 50) { splashes.push({ x: f.x, y: h - 50, r: 15, a: 1 }); fish.splice(i, 1); }
+    });
+
+    particles.forEach((p, i) => {
+        p.x += p.vx; p.y += p.vy; p.life -= 0.02;
+        if(p.life <= 0) particles.splice(i, 1);
+    });
+
+    speedLines.forEach((l, i) => { l.x -= speed * 1.5; if(l.x < -100) speedLines.splice(i, 1); });
+    splashes.forEach((s, i) => { s.r += 2; s.a -= 0.03; if(s.a <= 0) splashes.splice(i, 1); });
+    if(shake > 0) shake *= 0.9;
+    distUi.innerText = score;
+    killUi.innerText = kills;
+}
+
+function die() {
+    if(state === 'DEAD') return;
+    snd.die(); 
+    state = 'DEAD'; shake = 50;
+    setTimeout(() => {
+        overlay.style.display = 'flex';
+        document.getElementById('title').innerText = "STRIKE OVER";
+        document.getElementById('stats').innerText = `DISTANCE: ${score} | KILLS: ${kills}`;
+    }, 500);
+}
+
+function drawWater() {
+    const waterLevel = h - 80;
+    ctx.fillStyle = 'rgba(0, 80, 200, 0.4)';
+    ctx.beginPath(); ctx.moveTo(0, waterLevel);
+    for(let i=0; i <= w; i += 20) ctx.lineTo(i, waterLevel + Math.sin(i * 0.01 + frame * 0.1) * 10);
+    ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.fill();
+}
+
+function drawEagleModel(x, y, rot, color1, color2, isEnemy=false, blink=0) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(rot);
+    const wingSwing = Math.sin(frame * 0.4) * 45;
+    ctx.fillStyle = color1;
+    ctx.beginPath();
+    ctx.moveTo(0, 50); ctx.lineTo(-60, 30); ctx.lineTo(-80, 70); ctx.lineTo(-60, 70);
+    ctx.fill();
+    ctx.fillStyle = color1;
+    ctx.beginPath(); ctx.moveTo(60, 40); ctx.bezierCurveTo(20, wingSwing - 10, -30, wingSwing - 60, -80, wingSwing); ctx.lineTo(-60, wingSwing + 20); ctx.fill();
+    ctx.fillStyle = color2;
+    ctx.beginPath(); ctx.ellipse(50, 50, 70, 30, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = isEnemy ? '#331111' : '#fff';
+    ctx.beginPath(); ctx.arc(115, 35, 25, 0, Math.PI * 2); ctx.fill();
+    if (blink <= 0) {
+        ctx.fillStyle = isEnemy ? '#ff003c' : '#ffce00';
+        ctx.beginPath(); ctx.arc(125, 30, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#000';
+        ctx.beginPath(); ctx.arc(127, 30, 2, 0, Math.PI * 2); ctx.fill();
+    } else {
+        ctx.strokeStyle = '#666'; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(120, 30); ctx.lineTo(130, 30); ctx.stroke();
+    }
+    ctx.fillStyle = isEnemy ? '#ff003c' : '#ffce00';
+    ctx.beginPath(); ctx.moveTo(138, 28); ctx.lineTo(170, 40); ctx.quadraticCurveTo(175, 50, 140, 60); ctx.lineTo(135, 45); ctx.fill();
+    ctx.restore();
+}
+
+function draw() {
+    const skyG = ctx.createLinearGradient(0, 0, 0, h);
+    if(phase === 'SKY') { skyG.addColorStop(0, '#020205'); skyG.addColorStop(1, '#0a0a1f'); }
+    else if(phase === 'ENEMY') { skyG.addColorStop(0, '#1a0505'); skyG.addColorStop(1, '#020205'); }
+    else { skyG.addColorStop(0, '#050a14'); skyG.addColorStop(1, '#0a1a2f'); }
+    ctx.fillStyle = skyG; ctx.fillRect(0, 0, w, h);
+    ctx.save();
+    if(shake > 1) ctx.translate(Math.random()*shake, Math.random()*shake);
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = 1;
+    speedLines.forEach(l => { ctx.beginPath(); ctx.moveTo(l.x, l.y); ctx.lineTo(l.x + l.len, l.y); ctx.stroke(); });
+    ctx.fillStyle = '#0a0a0a'; ctx.strokeStyle = '#333'; ctx.lineWidth = 2;
+    obstacles.forEach(o => {
+        ctx.beginPath(); const n = o.noise;
+        if(o.type === 'top') { ctx.moveTo(o.x+n[0], 0); ctx.lineTo(o.x+o.w+n[1], 0); ctx.lineTo(o.x+o.w+n[2], o.h); ctx.lineTo(o.x+n[3], o.h); }
+        else { ctx.moveTo(o.x+n[0], o.y); ctx.lineTo(o.x+o.w+n[1], o.y); ctx.lineTo(o.x+o.w+n[2], h); ctx.lineTo(o.x+n[3], h); }
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+    });
+    if(phase === 'SEA') drawWater();
+    enemies.forEach(e => drawEagleModel(e.x, e.y, e.rot, '#221111', '#441111', true, e.blink));
+    drones.forEach(d => {
+        ctx.save(); ctx.translate(d.x, d.y); ctx.rotate(d.rot);
+        ctx.fillStyle = '#333'; ctx.fillRect(-40, -5, 80, 10); ctx.fillRect(-5, -40, 10, 80);
+        ctx.fillStyle = '#00f2fe'; [-40, 40].forEach(ox => [-40, 40].forEach(oy => { ctx.beginPath(); ctx.arc(ox, oy, 12, 0, Math.PI*2); ctx.fill(); }));
+        ctx.restore();
+    });
+    fish.forEach(f => { ctx.fillStyle = '#ffce00'; ctx.beginPath(); ctx.ellipse(f.x, f.y, 20, 10, Math.atan2(f.vy, -10), 0, Math.PI*2); ctx.fill(); });
+    drawEagleModel(eagle.x, eagle.y, eagle.rot, '#1a110a', '#3d2b1f', false, eagle.eyeBlink);
+    if(eagle.clawActive) {
+        ctx.save(); ctx.translate(eagle.x, eagle.y); ctx.strokeStyle = '#ffce00'; ctx.lineWidth = 7; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(60, 70); ctx.lineTo(70, 125); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(85, 70); ctx.lineTo(95, 125); ctx.stroke(); ctx.restore();
+    }
+    particles.forEach(p => { ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.fillRect(p.x, p.y, 4, 4); ctx.globalAlpha = 1; });
+    ctx.restore();
+    if(state === 'IDLE') { 
+        ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = 'bold 20px Segoe UI'; 
+        ctx.fillText(isMobileEnabled ? "PULL JOYSTICK TO START" : "HOLD 'W' TO ASCEND", w/2, h/2 + 150); 
+    }
+}
+
+function loop() { update(); draw(); requestAnimationFrame(loop); }
+window.onresize = init;
+init();
+loop();
+</script>
+</body>
+</html>
