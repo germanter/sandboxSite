@@ -88,7 +88,7 @@ const games = [
     title: "3D Shoot The Bloops",
     link: "/games/shootBloops3d.html",
     imgLink: "https://i.postimg.cc/7PVH9YN5/shoot-The-Bloops.webp",
-    desc: "Dive into the pressurized depths of Shoot the Bloops, a high-octane 3D shooting gallery that transforms the tranquil ocean floor into a chaotic pearl-hunting frenzy. Your mission: pop the anxious, spike-covered pufferfish using your submarine’s bubble cannon before your oxygen supply runs dry. Controls: Mouse/Drag to aim, Click/Tap FIRE. Frenzy mode over 1,000 pearls triggers wavy effects. Landscape recommended on mobile. Deep Sea Bloop leverages advanced WebGL via Three.js with procedural marine life, SVG displacement for frenzy, buoyancy physics for bubbles, volumetric fog, and audio synthesis for bloops."
+    desc: "Dive into the pressurized depths of Shoot the Bloops, a high-octane 3D shooting gallery that transforms the tranquil ocean floor into a chaotic pearl-hunting frenzy. Your mission: pop the anxious, spike-covered pufferfish using your submarine’s bubble cannon before your oxygen supply runs dry. Controls: Mouse/Drag to aim, Click/Tap FIRE. Frenzy mode over 1,000 pearls triggers wavy effects. Landscape recommended on mobile. Shoot The Bloop leverages advanced WebGL via Three.js with procedural marine life, SVG displacement for frenzy, buoyancy physics for bubbles, volumetric fog, and audio synthesis for bloops."
   },
   {
     title: "Crazy Impulse",
