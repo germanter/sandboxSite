@@ -2,7 +2,7 @@
   "cleanUrls": true,
   "rewrites": [
     {
-      "source": "/:slug",
+      "source": "/((?!holder|games|assets|global.js|index.html|favicon.ico).*)",
       "destination": "/holder/holder.html"
     }
   ]

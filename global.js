@@ -262,7 +262,7 @@ export function renderGames(containerId, limit = null){
 
       // global.js içindeki renderGames kısmında link üretimi:
     const slug = createSlug(game.title);
-    const holderUrl = `/${slug}`; // Artık sadece /oyun-adi
+    const holderUrl = `/${slug}`; // Baştaki slash / çok önemli!
 
 
     card.innerHTML = `

@@ -31,10 +31,10 @@ function setupEmailPanel() {
 document.addEventListener("DOMContentLoaded", () => {
 
     const path = window.location.pathname;
-    const slugFromUrl = path.split('/').pop();
+    const slugFromUrl = path.replace(/^\/+|\/+$/g, ''); 
 
+    // Slug ile eşleşen oyunu bul
     const game = games.find(g => createSlug(g.title) === slugFromUrl);
-
     if (game) {
 
         const title = game.title;
@@ -75,9 +75,12 @@ document.addEventListener("DOMContentLoaded", () => {
             </div>
         `;
 
-    } else {
-        goHome();
-    }
+        } else {
+        // Eğer slug boş değilse ve oyun bulunamadıysa ana sayfaya at (Sonsuz döngüyü engelle)
+        if (slugFromUrl && slugFromUrl !== "index" && !slugFromUrl.includes('.html')) {
+             goHome();
+        }
+        }
 
     setupEmailPanel();
     renderGames("gamesGridForHolder", 6);
