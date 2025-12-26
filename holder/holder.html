@@ -5,13 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="index,follow">
     <title id="page-title">Dumbux - Loading...</title>
-    <link rel="icon" href="../assets//logo.ico" type="image/x-icon">
+    <link rel="icon" href="/assets//logo.ico" type="image/x-icon">
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
         
         body {
             font-family: 'Inter', sans-serif;
+        }
+
+        .game-card {
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            cursor: pointer;
+        }
+        
+        .game-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+        }
+        
+        .sketch-icon {
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
         }
         
         .back-arrow {
@@ -49,8 +63,8 @@
         <header class="fixed top-0 left-0 right-0 z-[100] glass-nav shadow-sm">
             <div class="max-w-7xl mx-auto px-4 h-16 md:h-24 flex items-center justify-between">
                 
-                <a href="../index.html" class="flex items-center gap-3 md:gap-5 hover:opacity-80 transition-opacity cursor-pointer">
-                    <img src="../assets/logo.ico" alt="Logo" class="w-8 h-8 md:w-12 md:h-12 object-contain border rounded">
+                <a href="/" class="flex items-center gap-3 md:gap-5 hover:opacity-80 transition-opacity cursor-pointer">
+                    <img src="/assets/logo.ico" alt="Logo" class="w-8 h-8 md:w-12 md:h-12 object-contain border rounded">
                     <div class="flex flex-col md:flex-row md:items-baseline md:gap-3">
                         <span class="text-xl md:text-3xl font-extrabold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
                             Dumbux
@@ -131,13 +145,13 @@
         <!-- Footer -->
         <footer class="relative text-center mt-12 mb-8 text-slate-600 w-full">
             <div class="flex flex-wrap justify-center gap-x-6 gap-y-2 mb-6 text-sm font-semibold tracking-wide">
-                <a href="../legal/privacy.html" class="text-slate-500 hover:text-indigo-600 transition-colors duration-200 decoration-indigo-200 underline-offset-4 hover:underline">
+                <a href="/privacy" class="text-slate-500 hover:text-indigo-600 transition-colors duration-200 decoration-indigo-200 underline-offset-4 hover:underline">
                     Privacy Policy
                 </a>
                 <a href="mailto:simuxcentre0@gmail.com" class="text-slate-500 hover:text-indigo-600 transition-colors duration-200 decoration-indigo-200 underline-offset-4 hover:underline">
                     Contact Us
                 </a>
-                <a href="../legal/tos.html" class="text-slate-500 hover:text-indigo-600 transition-colors duration-200 decoration-indigo-200 underline-offset-4 hover:underline">
+                <a href="/tos" class="text-slate-500 hover:text-indigo-600 transition-colors duration-200 decoration-indigo-200 underline-offset-4 hover:underline">
                     Terms of Service
                 </a>
             </div>
@@ -150,6 +164,6 @@
         </footer>
     </div>
 
-    <script type="module" src="holderScript.js"></script>
+    <script type="module" src="/holder/holderScript.js"></script>
 </body>
 </html>
