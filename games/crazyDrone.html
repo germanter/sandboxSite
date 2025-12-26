@@ -494,7 +494,7 @@ let isMobileMode = false;
         // Floor Collision
         if (physics.pos.y < 0.2) {
             physics.pos.y = 0.2;
-            if (physics.vel.y < -2.0) {
+            if (physics.vel.y < -3.0 && physics.pos.y > 0.5) {
                 // Hard landing
                 physics.crashed = true;
                 document.getElementById('crash-msg').style.display = 'block';
