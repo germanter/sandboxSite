@@ -1,9 +1,0 @@
-{
-  "cleanUrls": true,
-  "rewrites": [
-    {
-      "source": "/((?!holder|games|assets|global.js|index.html|favicon.ico).*)",
-      "destination": "/holder/holder.html"
-    }
-  ]
-}
