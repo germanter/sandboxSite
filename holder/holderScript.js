@@ -29,11 +29,11 @@ function setupEmailPanel() {
 
 
 document.addEventListener("DOMContentLoaded", () => {
-    const params = new URLSearchParams(window.location.search);
-    const gameId = params.get("id")
 
-    const game = games.find(g => g.id === parseInt(gameId));
+    const path = window.location.pathname;
+    const slugFromUrl = path.split('/').pop();
 
+    const game = games.find(g => createSlug(g.title) === slugFromUrl);
 
     if (game) {
 

@@ -211,6 +211,16 @@ async function safeNavigate(targetUrl) {
 // HTML'den erişebilmek için window objesine bağla
 window.safeNavigate = safeNavigate;
 
+// global.js içine ekle
+export const createSlug = (text) => {
+    return text
+        .toLowerCase()
+        .trim()
+        .replace(/[^\w\s-]/g, '')
+        .replace(/[\s_-]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+};
+
 
 export function renderGames(containerId, limit = null){
   const grid = document.getElementById(containerId);
@@ -249,9 +259,11 @@ export function renderGames(containerId, limit = null){
 
         // Burada linki holder.html'e yönlendiriyoruz ve bilgileri URL'e gömüyoruz
     // Limit varsa holder.html, yoksa holder/holder.html kullan
-    const baseUrl = limit ? "holder.html" : "holder/holder.html";
 
-    const holderUrl = `${baseUrl}?id=${game.id}`;
+      // global.js içindeki renderGames kısmında link üretimi:
+    const slug = createSlug(game.title);
+    const holderUrl = `/${slug}`; // Artık sadece /oyun-adi
+
 
     card.innerHTML = `
       <h3 class="text-xl font-semibold text-slate-800 mb-6 text-center">
