@@ -494,7 +494,7 @@ let isMobileMode = false;
         // Floor Collision
         if (physics.pos.y < 0.2) {
             physics.pos.y = 0.2;
-            if (physics.vel.y < -3.0 && physics.pos.y > 0.5) {
+            if (physics.vel.y < -2.0) {
                 // Hard landing
                 physics.crashed = true;
                 document.getElementById('crash-msg').style.display = 'block';
@@ -686,7 +686,7 @@ window.addEventListener('keydown', (e) => {
     
     keys[e.key] = true; // Mevcut drona hareket verme mantığını bozmaz
 }, { passive: false });
-
+    scene.updateMatrixWorld(true)
     animate();
     </script>
 </body>
