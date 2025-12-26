@@ -38,3 +38,10 @@ buna gore merkezi yer globaldi ikiside ordan datayi ve funksiyani cekir
 ----proje hakkinda key detay , vercel edilen pushu pull elemeycin tek yetkili olarak germanter hesabini gorur ->
 yani nesir ne qeder isteyir push atsin , olarak yigilacak stack kimi -> men 1 push ataciyam -> hammisi push edilecek
 bu gatekeeping di eksini qurmaycin vercel upgrade almay lazimdi yadaki prayektin securitysi hamamda tursu xiyar yeyen dayi olar
+
+^^^^  {
+    title: "Dino Mod",
+    link: "/games/dinoMod.html",
+    imgLink: "https://i.postimg.cc/Xvr0dmKy/dino-Mod.webp",
+    desc: "A modified version of the classic Chrome offline Dino game with customizable settings. Jump over obstacles with the spacebar while tweaking speed, jump power, obstacle density, god mode, and night mode through the in-game menu for endless fun and challenge."
+ ^^^^^ },

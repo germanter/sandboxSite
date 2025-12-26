@@ -48,12 +48,6 @@ const games = [
     desc: "Welcome to DumbAI, the world's most intentionally underwhelming artificial intelligence. While other models are busy trying to pass the Turing test or solve world hunger, DumbAI is hard at work perfecting the art of the shrug. It is a satirical sandbox project designed to simulate a 'high-tech' chat interface that delivers nothing but peak sarcasm, dubious wisdom, and glitchy humor. Whether you are looking for coding 'advice' that will definitely break your production environment or life tips from a bot that has the attention span of a goldfish, you have come to the right place. The experience is straightforward and dangerously low-stakes. Simply head to the input field at the bottom of the screen and type your most pressing questions. As you hit enter, you will witness the 'thinking' process in real-time, where the AI might be 'Consulting the void' or 'Spinning the hamster in its brain.' Depending on your keywords, the bot will categorize your query into specific domains like Coding, Corporate, or Mystic. Don't expect accuracy; the model boasts a 0.3% accuracy rate for a reason. DumbAI is a lightweight, high-performance web application built with a modern HTML5, CSS3, and Vanilla JavaScript stack. It utilizes a client-side logic engine with RegEx-driven keyword detection and hand-crafted responses."
   },
   {
-    title: "Dino Mod",
-    link: "/games/dinoMod.html",
-    imgLink: "https://i.postimg.cc/Xvr0dmKy/dino-Mod.webp",
-    desc: "A modified version of the classic Chrome offline Dino game with customizable settings. Jump over obstacles with the spacebar while tweaking speed, jump power, obstacle density, god mode, and night mode through the in-game menu for endless fun and challenge."
-  },
-  {
     title: "3D Arena",
     link: "/games/3dArena.html",
     imgLink: "https://i.postimg.cc/Gpy3xFMw/3d-Arena.webp",
