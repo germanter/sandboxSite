@@ -261,8 +261,7 @@
         quat: new THREE.Quaternion(), // Actual rotation
         angVel: new THREE.Vector3(0, 0, 0), // Rotational velocity
         battery: 100.0,
-        crashed: false,
-        crashCount: 0
+        crashed: false
     };
 
 let isMobileMode = false;
@@ -357,7 +356,6 @@ let isMobileMode = false;
         physics.angVel.set(0,0,0);
         physics.quat.set(0,0,0,1);
         physics.crashed = false;
-        physics.crashCount = 0;
         physics.battery = 100;
         drone.rotation.set(0,0,0);
         document.getElementById('crash-msg').style.display = 'none';
@@ -532,17 +530,12 @@ let isMobileMode = false;
 
         // Obstacles (Trees)
         for(let m of obstaclesMeshes) {
-            if (physics.crashCount === 0) {
-                    // İLK ÇARPIŞMA: Sadece geri fırlat ve sayacı artır
-                    physics.crashCount = 1;
-                    physics.vel.multiplyScalar(-1.2); // Biraz daha güçlü geri falsolu sekme
-                    console.log("İlk çarpışma: Hasar koruması aktif!");
-                } else {
-                    // İKİNCİ ÇARPIŞMA: Şimdi crash sayılır
-                    physics.crashed = true;
-                    physics.vel.multiplyScalar(-0.5);
-                    document.getElementById('crash-msg').style.display = 'block';
-                }
+            // Box collision is better for trunks
+            const box = new THREE.Box3().setFromObject(m);
+            if(box.distanceToPoint(droneCenter) < droneRad) {
+                physics.crashed = true;
+                physics.vel.multiplyScalar(-0.5); // Bounce
+                document.getElementById('crash-msg').style.display = 'block';
                 return;
             }
         }
