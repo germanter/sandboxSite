@@ -1,4 +1,4 @@
-import { renderGames } from '../global.js';
+import { renderGames, games } from '../global.js';
 
 function goHome() { // still need it
 // Eğer ../index.html çalışmıyorsa, yolu şu şekilde zorla:
@@ -30,11 +30,18 @@ function setupEmailPanel() {
 
 document.addEventListener("DOMContentLoaded", () => {
     const params = new URLSearchParams(window.location.search);
-    const title = params.get('title');
-    const gameUrl = params.get('gameUrl');
-    const gameDesc = params.get("gameDesc") || "No description provided for this mess.";
+    const gameId = params.get("id")
 
-    if (title && gameUrl) {
+    const game = games.find(g => g.id === parseInt(gameId));
+
+
+    if (game) {
+
+        const title = game.title;
+        const gameUrl = game.link
+        const gameDesc = game.desc
+
+
         document.title = title + " - Dumbux";
         document.getElementById('game-title-display').innerText = title;
         document.getElementById('sandbox-frame').src = gameUrl;
