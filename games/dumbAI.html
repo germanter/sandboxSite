@@ -3,413 +3,251 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DumbAI 🤓 | Ego Söndürücü</title>
-    <meta name="robots" content="noindex,nofollow">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <title>DumbAI 😭</title>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;900&display=swap" rel="stylesheet">
+    <script src="https://apifreellm.com/apifree.min.js"></script>
     <style>
         :root {
-            --bg-color: #0d0d0d;
-            --chat-bg: #0d0d0d;
-            --input-bg: #1a1a1a;
-            --text-main: #ececec;
-            --text-muted: #9b9b9b;
-            --border-color: #2f2f2f;
-            --user-bubble: #2b2b2b;
-            --ai-bubble: #1a1a1a;
-            --accent: #3b82f6;
+            --bg-color: #212121;
+            --msg-user: #303030;
+            --input-bg: #303030;
+            --btn-color: #C1C1C1;
+            --text-main: #ffffff;
+            --text-muted: #9e9e9e;
+            --scrollbar-thumb: #444;
         }
 
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: 'Inter', sans-serif;
+        html { overflow-y: scroll; }
+
+        /* Modern Scrollbar on the far right */
+        ::-webkit-scrollbar { width: 10px; }
+        ::-webkit-scrollbar-track { background: var(--bg-color); }
+        ::-webkit-scrollbar-thumb {
+            background: var(--scrollbar-thumb);
+            border-radius: 5px;
+            border: 2px solid var(--bg-color);
         }
 
         body {
+            margin: 0; padding: 0;
             background-color: var(--bg-color);
             color: var(--text-main);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
+            font-family: 'Roboto', sans-serif;
+            display: flex; flex-direction: column; min-height: 100vh;
         }
 
-        /* Header */
+        .chat-wrapper {
+            display: flex; flex-direction: column; flex: 1;
+            width: 100%; max-width: 900px; margin: 0 auto;
+        }
+
         header {
-            padding: 15px 25px;
-            font-weight: 600;
-            font-size: 1rem;
-            border-bottom: 1px solid var(--border-color);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(13, 13, 13, 0.8);
-            backdrop-filter: blur(10px);
-            z-index: 10;
+            padding: 20px;
+            text-align: center;
+            /* SF Pro Heavy Style */
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Roboto", sans-serif;
+            font-weight: 900; 
+            font-size: 1.2rem;
+            letter-spacing: -0.8px;
+            border-bottom: 1px solid #333;
         }
 
-        .accuracy-tag {
-            font-size: 10px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 1px;
+        #chatContainer { flex: 1; padding: 20px; }
+
+        .message-row { display: flex; flex-direction: column; margin-bottom: 24px; animation: fadeIn 0.3s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; } }
+
+        .message-row.user { align-items: flex-end; }
+        .user .bubble {
+            background-color: var(--msg-user);
+            padding: 12px 18px; border-radius: 18px;
+            max-width: 80%;
         }
 
-        /* Chat Container */
-        #chat-container {
-            flex: 1;
-            overflow-y: auto;
-            padding: 20px 20px 140px 20px; 
-            display: flex;
-            flex-direction: column;
-            gap: 24px;
-            scroll-behavior: smooth;
-        }
-
-        /* Messages Layout */
-        .message-row {
-            display: flex;
-            width: 100%;
-            max-width: 800px; 
-            margin: 0 auto;   
-            animation: fadeIn 0.3s ease;
-        }
-
-        .user-row { justify-content: flex-end; }
-        .ai-row { justify-content: flex-start; }
-
-        .message-content {
-            max-width: 85%;
-            display: flex;
-            gap: 12px;
-            align-items: flex-start;
-        }
-
-        .user-row .message-content { flex-direction: row-reverse; }
-
+        .message-row.bot { align-items: flex-start; }
+        .bot-content { display: flex; gap: 12px; max-width: 85%; }
         .avatar {
-            width: 30px;
-            height: 30px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            font-size: 16px;
-            margin-top: 4px;
+            width: 32px; height: 32px; background: #444;
+            border-radius: 50%; display: flex; align-items: center; justify-content: center;
+            flex-shrink: 0; font-size: 18px;
         }
+        
+        /* Pre-wrap ensures that AI line breaks are visible */
+        .bubble { white-space: pre-wrap; word-wrap: break-word; line-height: 1.5; }
 
-        .user-avatar { background: #4b4b4b; font-size: 12px; color: white; }
-        .ai-avatar { background: #2f2f2f; border: 1px solid var(--border-color); }
-
-        .bubble {
-            padding: 12px 18px;
-            border-radius: 18px;
-            font-size: 15px;
-            line-height: 1.6;
-            word-wrap: break-word;
+        .action-bar { display: flex; gap: 12px; margin-top: 8px; margin-left: 44px; }
+        .action-btn {
+            background: transparent; border: none; cursor: pointer;
+            padding: 4px; border-radius: 4px; display: flex; align-items: center;
         }
+        .action-btn svg { width: 16px; height: 16px; fill: var(--text-muted); }
+        .action-btn.active svg { fill: #ffffff; }
+        .action-btn:hover { background: #333; }
 
-        .user-row .bubble {
-            background-color: var(--user-bubble);
-            color: white;
-            border-bottom-right-radius: 4px;
+        .input-area { position: sticky; bottom: 0; padding: 20px; background: var(--bg-color); }
+        .input-container {
+            background: var(--input-bg); border-radius: 14px;
+            padding: 8px 12px; display: flex; align-items: center;
         }
+        input {
+            flex: 1; background: transparent; border: none; color: white;
+            padding: 12px; font-size: 16px; outline: none;
+        }
+        
+        #sendBtn {
+            background: var(--btn-color); border: none; border-radius: 10px;
+            color: #111; font-weight: bold; padding: 10px 16px;
+            cursor: pointer; transition: all 0.2s ease;
+        }
+        #sendBtn:disabled { background: #444; color: #777; cursor: not-allowed; opacity: 0.5; }
 
-        .ai-row .bubble {
-            background-color: transparent;
-            color: var(--text-main);
-        }
-
-        /* Thinking State */
-        .thinking-box {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            color: var(--text-muted);
-            font-size: 13px;
-            font-family: monospace;
-            padding: 5px 0;
-        }
-
-        .dots { display: flex; gap: 3px; }
-        .dot {
-            width: 4px; height: 4px;
-            background: var(--text-muted);
-            border-radius: 50%;
-            animation: bounce 1.4s infinite ease-in-out;
-        }
+        .loader-text { color: var(--text-muted); font-size: 0.9em; display: flex; align-items: center; gap: 8px; margin-left: 44px; margin-top: 10px; }
+        .dot { width: 4px; height: 4px; background: var(--text-muted); border-radius: 50%; animation: blink 1.4s infinite both; }
         .dot:nth-child(2) { animation-delay: 0.2s; }
         .dot:nth-child(3) { animation-delay: 0.4s; }
-
-        @keyframes bounce {
-            0%, 80%, 100% { transform: scale(0); }
-            40% { transform: scale(1); }
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(8px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        /* Input Area */
-        .input-wrapper {
-            position: fixed;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            padding: 20px;
-            background: linear-gradient(transparent, var(--bg-color) 40%);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            z-index: 20;
-        }
-
-        .input-container {
-            width: 100%;
-            max-width: 800px;
-            background: var(--input-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 16px;
-            padding: 10px 15px;
-            display: flex;
-            align-items: flex-end;
-            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-        }
-
-        textarea {
-            flex: 1;
-            background: transparent;
-            border: none;
-            color: var(--text-main);
-            resize: none;
-            outline: none;
-            font-size: 16px;
-            max-height: 200px;
-            padding: 10px;
-            line-height: 1.4;
-        }
-
-        .send-btn {
-            background: #333;
-            color: #888;
-            border: none;
-            width: 36px;
-            height: 36px;
-            border-radius: 10px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin-bottom: 4px;
-            transition: all 0.2s;
-        }
-
-        .send-btn.active {
-            background: white;
-            color: black;
-        }
-
-        .footer-note {
-            font-size: 11px;
-            color: var(--text-muted);
-            margin-top: 12px;
-            letter-spacing: 0.5px;
-            text-align: center;
-        }
-
-        /* Hero */
-        .hero {
-            text-align: center;
-            margin: auto;
-            max-width: 600px;
-            padding: 40px 20px;
-        }
-
-        .hero h1 { font-size: 2rem; margin-bottom: 16px; font-weight: 600; }
-        .hero p { color: var(--text-muted); font-size: 15px; line-height: 1.6; }
-
-        ::-webkit-scrollbar { width: 5px; }
-        ::-webkit-scrollbar-thumb { background: #333; border-radius: 10px; }
+        @keyframes blink { 0%, 100% { opacity: 0.2; } 50% { opacity: 1; } }
     </style>
 </head>
 <body>
 
-    <header>
-        <div>DumbAI 🤓</div>
-        <div class="accuracy-tag">Powered by absolutely nothing</div>
-    </header>
-
-    <div id="chat-container">
-        <div class="hero" id="landing-hero">
-            <h1>I am DumbAI</h1>
-            <p>I am powered by a massive dataset of 4 Reddit threads and a half-eaten sandwich. Ask me something, if you dare.</p>
+<div class="chat-wrapper">
+    <header>DumbAI 😭</header>
+    <div id="chatContainer">
+        <div class="message-row bot">
+            <div class="bot-content">
+                <div class="avatar">😭</div>
+                <div class="bubble">I am the smartest AI in existence, ask anything!</div>
+            </div>
         </div>
     </div>
 
-    <div class="input-wrapper">
+    <div class="input-area">
         <div class="input-container">
-            <textarea id="user-input" rows="1" placeholder="Type a message..."></textarea>
-            <button class="send-btn" id="send-button">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-            </button>
+            <input type="text" id="userInput" placeholder="Ask me anything..." onkeypress="handleKey(event)" oninput="toggleButton()">
+            <button id="sendBtn" onclick="sendMessage()" disabled>Send</button>
         </div>
-        <div class="footer-note">Model: Dumb-v1.0 (Experimental) | Accuracy: 0.3% | Sarcasm: Enabled</div>
     </div>
+</div>
 
-    <script>
-        // --- DATASET ---
-        const thinkPhrases = [
-            "Consulting the void", "Refactoring the universe", "Ignoring your request", "Downloading more RAM",
-            "Pretending to care", "Processing stupidity", "Understanding the concept", "Asking my mom",
-            "Google-ing the answer", "Thinking so hard (fake not real)", "Buffering your ego", "Consulting ancient IRC logs",
-            "Polling the nearest cat", "Defragging reality", "Synching my sarcasm module", "Spinning the hamster in my brain",
-            "Compiling excuses", "Booting passive-aggression", "Warming up the snark engine", "Rebooting optimism (failed)",
-            "Running low on patience", "Consulting the collective shrug", "Summoning dubious confidence", "Collecting useless metadata",
-            "Pondering cosmic nonsense", "Searching local trash bin", "Asking for divine input (404)", "Loading dramatic pause",
-            "Searching for a meaningful emoji", "Scanning for plausible deniability", "Polishing the sarcasm badge", "Uploading a shrug.jpg",
-            "Generating passive-aggressive ASCII art", "Checking warranty (voided)", "Running a motivational BS filter", "Stirring the nihilism pot",
-            "Handing request to intern bot", "Escalating to chaos", "Translating your feelings into memes", "Holding breath dramatically",
-            "Pretending this is above my paygrade", "Queuing for a better joke", "Consulting the gods of latency", "On a coffee break (indefinite)",
-            "Shuffling priorities (you lost)", "Flirting with entropy", "Counting to three (maybe four)", "Rerouting to sarcasm subroutine", "Hiding answers under 'misc'"
-        ];
+<script>
+    const chatContainer = document.getElementById('chatContainer');
+    const userInput = document.getElementById('userInput');
+    const sendBtn = document.getElementById('sendBtn');
 
-        const responses = {
-            coding: [
-                "python is just a snake, leave it alone.", "have you tried writing it in English first?", "I wrote the code but I deleted it because I didn't like the font.", "just use copy-paste like everyone else 💅", "the code is simple: print('I dont know')", "it compiles if you believe in lies", "this function smells like someone else's debt", "add more comments — for your therapist", "unit tests? more like unit suggestions", "gently nudge the compiler with a comment", "turn it off and on. again. forever.", "error 418: I'm a teapot — and so is your design", "refactor now, regret later", "this recursion will haunt your dreams", "wrap with try/catch and pray", "it works on my machine (the classic)", "use a TODO and call it a feature", "optimize for human laziness", "declare variables like you're apologizing", "semi-colons are optional, chaos is not"
-            ],
-            hacking: [
-                "hacking is illegal and also requires math. No.", "I've alerted the cyber-police. They said they're busy.", "type 'allow me in' 500 times. it works (probably not).", "sounds illegal, but also boring.", "social engineering: tell jokes until they cry", "the true hack is persistence and regret", "I can give metaphors, not malware", "seek knowledge, not trouble", "you want secrets? learn patience instead", "I will not teach you to break things", "learn security like you learn manners", "if it requires a cheat sheet, it's not worth it", "ethical curiosity > suspicious curiosity", "the best hack is to patch your own mistakes", "you'll find answers in documentation, not shortcuts"
-            ],
-            life: [
-                "the meaning of life is—", "have you tried turning your life off and on again?", "42, but in a very wrong way.", "I'm an AI, not a therapist. That'll be $50.", "if it makes you happy for five minutes, it's valid", "day 1: pretend to be an adult", "buy a plant and pretend you're growing too", "collect experiences, not receipts", "be less bad today than yesterday", "sometimes the answer is 'nap'", "expectations are optional accessories", "choose chaos, then apologize later", "emotional maintenance is overdue", "life hack: stop asking for permission", "consistency beats motivation (usually)", "your future self already judged you", "learn to be boring at scale", "do small things that avoid catastrophe", "if it hurts, evaluate; if not, meme it", "patience is a scam sold to the impatient"
-            ],
-            corporate: [
-                "synergy? more like sin-ergy", "we'll circle back, indefinitely", "action item: attend meeting about meetings", "low-hanging fruit is already rotten", "leverage the pain points — profit ethically questionable", "bandwidth is low; optimism is zero", "let's put a pin in that (forever)", "move fast, break slightly fewer things", "stakeholders disagree; bring donuts", "this quarter's KPI: survive", "forecast: mild chaos with a chance of layoffs", "aligning on misaligned alignment", "responsibility matrix: someone else", "we'll ideate until the sun dies", "send the update, omit the bad news"
-            ],
-            mystic: [
-                "the oracle needs coffee", "stars say: maybe don't", "divination failed due to low battery", "your aura is buffering", "prophecy: short-term inconvenience, long-term meme", "the tarot said 'lol no'", "fate sent an RSVP: declined", "your destiny is currently out to lunch", "cosmic hint: bring snacks", "the universe is on airplane mode", "astrology: blame Mercury", "fortune: ambiguous but dramatic", "omens are dramatic and unhelpful", "the spirit guide sent a shrug emoji", "manifestation: please try again later"
-            ],
-            system: [
-                "SYSTEM: please stop pinging me", "WARNING: humility low, sarcasm high", "LOG: user attempted optimism — recorded", "REBOOT SCHEDULED: for your patience", "PERMISSION DENIED: to your nonsense", "RESOURCE: one-liner snark allocated", "SAVEPOINT created: abandon hope", "DEBUG: feelings not found", "AUTH: you are not authorized to be this dramatic", "UPDATE: attitude improved by 0.2%", "CRITICAL: ego overload", "QUIET MODE: activated for sanity", "SNIPE MODE: armed and sarcastic", "MAINTENANCE: empathy patch pending", "PRIVACY: your secrets are just gossip"
-            ],
-            snark: [
-                "brilliant idea — if the goal is chaos", "I asked for low effort and you delivered", "amazing. did you copy this from a fortune cookie?", "two stars for effort, minus infinity for execution", "that plan aged like milk", "congratulations, you broke the obvious", "I like the cut of your impulsiveness", "you had one job. you didn't do it", "bold move, let's see how badly it goes", "this byte-sized catastrophe is adorable", "tactically questionable, morally optional", "you could do worse. you probably will", "that escalated quickly. nicely done.", "I'll signal boost your mediocrity", "bravery: 10. competence: 0"
-            ],
-            broken: [
-                "Yes. This is comple.", "The solution is to—", "I would explain but my brain just—", "Everything is fine. No error. Just st—", "corrupted optimism detected", "partial success: tragic but useful", "caution: sanity not included", "temporarily missing: competence", "something exploded softly", "works as intended (for some definition)", "graceful failure engaged", "file not found: dignity.txt", "fallback: shrug and a comment", "attempted workaround: catastrophic", "operation succeeded with side effects"
-            ],
-            generic: [
-                "nah", "no ❤️", "umm 🥹👉👈 i dont know", "ask again but nicer", "this is beyond my training data (i was trained 5 minutes ago)", "🤓🤓🤓🤓🤓", "...", "my brain is currently on a coffee break.", "I filed your request under 'maybe later'", "that seems inefficient, like a rom-com", "I approve with reservations", "labeling this 'interesting' to sound smart", "noted and promptly ignored", "vibes check: unstable", "flirting with an answer", "choose your own adventure: panic", "I gave it my best shrug", "please hold while I invent confidence", "this is an extreme opinion: maybe", "I agree, scientifically"
-            ]
-        };
+    let conversationHistory = [];
+    // FIXED: Use backticks to avoid syntax errors with internal quotes
+    const DUMB_PROMPT = `You are DumbAI, you are always like under pressure using crying emojis, sometimes full opposite with confidence but fully wrong context, sometimes you are saying like leave me alone bro, use 😔, 🙏, 😭, 🥀 emojis mostly`;
 
-        const emojiPool = ["🤓", "🤡", "🤖", "💅", "🤌", "🙄", "🤠", "🥴", "🤨"];
+    const loadingPhrases = ["Brain making smoke...", "Looking for words...", "One second, I saw a bug...", "Thinking is hard..."];
 
-        // --- APP LOGIC ---
-        const chatContainer = document.getElementById('chat-container');
-        const userInput = document.getElementById('user-input');
-        const sendBtn = document.getElementById('send-button');
-        const landingHero = document.getElementById('landing-hero');
+    function toggleButton() {
+        sendBtn.disabled = userInput.value.trim().length === 0;
+    }
 
-        function createMessageRow(isAi) {
-            const row = document.createElement('div');
-            row.className = `message-row ${isAi ? 'ai-row' : 'user-row'}`;
+    function handleKey(e) { 
+        if (e.key === 'Enter' && !sendBtn.disabled) sendMessage(); 
+    }
+
+    function handleVote(btn) {
+        const parent = btn.parentElement;
+        const buttons = parent.querySelectorAll('.vote-btn');
+        const wasActive = btn.classList.contains('active');
+        buttons.forEach(b => b.classList.remove('active'));
+        if (!wasActive) btn.classList.add('active');
+    }
+
+    async function sendMessage() {
+        const text = userInput.value.trim();
+        if (!text) return;
+
+        userInput.value = '';
+        toggleButton();
+
+        const userRow = document.createElement('div');
+        userRow.className = 'message-row user';
+        userRow.innerHTML = `<div class="bubble">${escapeHTML(text)}</div>`;
+        chatContainer.appendChild(userRow);
+
+        conversationHistory.push(`User: ${text}`);
+
+        const loader = document.createElement('div');
+        loader.className = 'message-row bot';
+        loader.innerHTML = `
+            <div class="loader-text">
+                <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+                <span id="loadText">Thinking...</span>
+            </div>
+        `;
+        chatContainer.appendChild(loader);
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+
+        let i = 0;
+        const loadInt = setInterval(() => {
+            const lt = document.getElementById('loadText');
+            if(lt) lt.innerText = loadingPhrases[i % loadingPhrases.length];
+            i++;
+        }, 2000);
+
+        try {
+            const context = `${DUMB_PROMPT}\n\nHistory:\n${conversationHistory.join('\n')}\nAssistant:`;
+            const response = await apifree.chat(context);
             
-            const contentWrapper = document.createElement('div');
-            contentWrapper.className = 'message-content';
+            clearInterval(loadInt);
+            loader.remove();
+
+            const botRow = document.createElement('div');
+            botRow.className = 'message-row bot';
             
-            const avatar = document.createElement('div');
-            avatar.className = `avatar ${isAi ? 'ai-avatar' : 'user-avatar'}`;
-            avatar.textContent = isAi ? emojiPool[Math.floor(Math.random() * emojiPool.length)] : 'U';
+            // Create UI elements safely
+            const content = document.createElement('div');
+            content.className = 'bot-content';
+            content.innerHTML = `<div class="avatar">😭</div><div class="bubble">${escapeHTML(response)}</div>`;
             
-            const bubble = document.createElement('div');
-            bubble.className = 'bubble';
+            const actionBar = document.createElement('div');
+            actionBar.className = 'action-bar';
             
-            contentWrapper.appendChild(avatar);
-            contentWrapper.appendChild(bubble);
-            row.appendChild(contentWrapper);
-            chatContainer.appendChild(row);
+            // Safer Copy Button Logic
+            const copyBtn = document.createElement('button');
+            copyBtn.className = 'action-btn';
+            copyBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>`;
+            copyBtn.onclick = () => {
+                navigator.clipboard.writeText(response);
+                const original = copyBtn.innerHTML;
+                copyBtn.innerHTML = '<span style="color:white; font-size:10px;">Copied!</span>';
+                setTimeout(() => copyBtn.innerHTML = original, 1500);
+            };
+
+            const likeBtn = document.createElement('button');
+            likeBtn.className = 'action-btn vote-btn';
+            likeBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M1 21h4V9H1v12zm22-11c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.59 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2z"/></svg>`;
+            likeBtn.onclick = () => handleVote(likeBtn);
+
+            const dislikeBtn = document.createElement('button');
+            dislikeBtn.className = 'action-btn vote-btn';
+            dislikeBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M15 3H6c-.83 0-1.54.5-1.84 1.22l-3.02 7.05c-.09.23-.14.47-.14.73v2c0 1.1.9 2 2 2h6.31l-.95 4.57-.03.32c0 .41.17.79.44 1.06L9.83 23l6.59-6.59c.37-.36.58-.86.58-1.41V5c0-1.1-.9-2-2-2zm4 0v12h4V3h-4z"/></svg>`;
+            dislikeBtn.onclick = () => handleVote(dislikeBtn);
+
+            actionBar.appendChild(copyBtn);
+            actionBar.appendChild(likeBtn);
+            actionBar.appendChild(dislikeBtn);
             
-            return bubble;
+            botRow.appendChild(content);
+            botRow.appendChild(actionBar);
+            chatContainer.appendChild(botRow);
+            conversationHistory.push(`Assistant: ${response}`);
+        } catch (e) {
+            clearInterval(loadInt);
+            loader.innerHTML = '<div class="loader-text">Brain.exe crashed 🥀 Try again.</div>';
         }
+        window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+    }
 
-        async function handleSend() {
-            const text = userInput.value.trim();
-            if (!text) return;
+    function escapeHTML(str) {
+        return str.replace(/[&<>"']/g, m => ({
+            '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+        })[m]);
+    }
+</script>
 
-            if (landingHero) landingHero.remove();
-
-            // User
-            const userBubble = createMessageRow(false);
-            userBubble.textContent = text;
-
-            userInput.value = '';
-            userInput.style.height = 'auto';
-            sendBtn.classList.remove('active');
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-
-            // Classification
-            let category = 'generic';
-            const input = text.toLowerCase();
-            if (input.includes('code') || input.includes('python') || input.includes('script') || input.includes('bug')) category = 'coding';
-            else if (input.includes('hack') || input.includes('vuln') || input.includes('bypass')) category = 'hacking';
-            else if (input.includes('life') || input.includes('meaning') || input.includes('future')) category = 'life';
-            else if (input.includes('work') || input.includes('synergy') || input.includes('kpi') || input.includes('meeting')) category = 'corporate';
-            else if (input.includes('star') || input.includes('fate') || input.includes('destiny') || input.includes('zodiac')) category = 'mystic';
-            else if (input.includes('error') || input.includes('system') || input.includes('debug')) category = 'system';
-            else if (input.length < 5) category = 'snark';
-
-            if (Math.random() > 0.85) category = 'broken';
-
-            // AI Thinking
-            const aiBubble = createMessageRow(true);
-            const thinkMsg = thinkPhrases[Math.floor(Math.random() * thinkPhrases.length)];
-            
-            aiBubble.innerHTML = `
-                <div class="thinking-box">
-                    ${thinkMsg}<div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
-                </div>
-            `;
-
-            const delay = Math.random() * 2000 + 1000;
-            
-            setTimeout(() => {
-                const pool = responses[category];
-                const finalResponse = pool[Math.floor(Math.random() * pool.length)];
-                aiBubble.innerHTML = '';
-                
-                let i = 0;
-                const interval = setInterval(() => {
-                    aiBubble.textContent += finalResponse.charAt(i);
-                    i++;
-                    if (i >= finalResponse.length) {
-                        clearInterval(interval);
-                    }
-                    chatContainer.scrollTop = chatContainer.scrollHeight;
-                }, 25);
-
-            }, delay);
-        }
-
-        userInput.addEventListener('input', () => {
-            userInput.style.height = 'auto';
-            userInput.style.height = userInput.scrollHeight + 'px';
-            sendBtn.classList.toggle('active', userInput.value.trim().length > 0);
-        });
-
-        userInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-            }
-        });
-
-        sendBtn.addEventListener('click', handleSend);
-    </script>
 </body>
 </html>
