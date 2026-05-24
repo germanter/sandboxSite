@@ -132,6 +132,13 @@ export const games = [
     link: "/games/brickBybrick2d.html",
     imgLink: "https://i.postimg.cc/dVvKWFgF/brick-By-Brick.webp",
     desc: "Brick By Brick 2D is a high octane, precision-based construction simulator designed for those who have a sharp eye and even sharper reflexes. Set against a sleek, synthwave-inspired night horizon, your mission is simple yet addictive: stack neon blocks to build the tallest skyscraper the digital world has ever seen. It is a minimalist masterpiece that blends timing mechanics with a futuristic aesthetic, offering a 'one more try' experience. Control a high-tech construction crane. A neon block swings back and forth. Drop: Tap/Click/Spacebar to release. Precision: Perfect alignment maintains width and gives bonus. Miss: Slices off part, making platform smaller. Combos: Multiply score. Game Over: Miss completely, tower crumbles with physics debris. Built using modern HTML5 Canvas with 60 FPS, custom responsive engine, advanced rendering with gradients/particles, procedural skyline, Web Audio API tones, and requestAnimationFrame with delta-time clamp. Horizon scrolls. Debris physics. Timing key. Synthwave vibe. Replayable. To build tall, master swing timing for perfect drops. Combos from consecutives. Debris adds drama. Music pulses. For records, practice rhythm. Community towers. Performance crisp. Development balance tested. Future themes. Addictive stacking."
+  },
+  {
+    slug : "rubik",
+    title: "Rubik",
+    link: "/games/rubik.html",
+    imgLink: "https://i.postimg.cc/Xq5kXkdJ/rubik.webp",
+    desc: "3D Rubik Game."
   }
 ];
 
