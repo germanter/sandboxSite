@@ -504,18 +504,22 @@ function showOfflineScreen() {
 
 
 
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// CLOUDFLARE TURNSTILE TEST (INVISIBLE)
+// CLOUDFLARE TURNSTILE TEST (SAFE ON-DEMAND / HOME-ONLY)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export const CAPTCHA_ENABLED = true;
+export const CAPTCHA_ENABLED = true; // Set to false to disable completely
 export const TURNSTILE_SITE_KEY = "0x4AAAAAAFmrJVOnHx8B41l4"; // Put your site key here
 
 function initTurnstileTest() {
   if (!CAPTCHA_ENABLED) return;
 
-  // 1. Create a container (NO display: none!)
+  // 1. Safety Guard: Do NOT run inside games or holder pages!
+  const path = window.location.pathname;
+  const isHomePage = path === "/" || path === "/index.html" || path === "";
+  if (!isHomePage) return;
+
+  // 2. Create container
   let container = document.getElementById("cf-turnstile-test");
   if (!container) {
     container = document.createElement("div");
@@ -523,9 +527,9 @@ function initTurnstileTest() {
     document.body.appendChild(container);
   }
 
-  // 2. Global callback when Cloudflare script is ready
+  // 3. Define callback
   window._onTurnstileReady = function () {
-    window.turnstile.render("#cf-turnstile-test", {
+    const widgetId = window.turnstile.render("#cf-turnstile-test", {
       sitekey: TURNSTILE_SITE_KEY,
       size: "invisible",
       callback: function (token) {
@@ -533,15 +537,22 @@ function initTurnstileTest() {
         console.log("[Turnstile] Generated Token:", token);
 
         showSuccessToast();
+
+        // 4. CRITICAL: Stop the spinner! Remove the widget once token is captured.
+        setTimeout(() => {
+          try {
+            window.turnstile.remove(widgetId);
+            container.remove();
+          } catch (e) {}
+        }, 1000);
       },
       "error-callback": function (errorCode) {
         console.error("[Turnstile] Error:", errorCode);
       }
     });
-    // NOTE: In invisible mode, render() executes automatically. No execute() call needed!
   };
 
-  // 3. Inject script
+  // 5. Inject script
   const script = document.createElement("script");
   script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?onload=_onTurnstileReady&render=explicit";
   document.head.appendChild(script);
@@ -549,7 +560,7 @@ function initTurnstileTest() {
 
 function showSuccessToast() {
   const toast = document.createElement("div");
-  toast.innerHTML = "🛡️ <b>Turnstile (Invisible):</b> Verified!";
+  toast.innerHTML = "🛡️ <b>Turnstile:</b> Verified! (Test Complete)";
   toast.style.cssText = `
     position: fixed;
     bottom: 20px;
@@ -568,9 +579,7 @@ function showSuccessToast() {
   setTimeout(() => toast.remove(), 4000);
 }
 
-// Auto-run on page load
-if (document.readyState === "loading") {
-  window.addEventListener("DOMContentLoaded", initTurnstileTest);
-} else {
-  initTurnstileTest();
-}
+// 6. DELAY EXECUTION: Let the site, games, and Tailwind render 100% first!
+window.addEventListener("load", () => {
+  setTimeout(initTurnstileTest, 1200);
+});
