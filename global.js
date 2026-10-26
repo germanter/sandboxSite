@@ -508,8 +508,8 @@ function showOfflineScreen() {
 // CLOUDFLARE TURNSTILE TEST (SAFE ON-DEMAND / HOME-ONLY)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-export const CAPTCHA_ENABLED = true; // Set to false to disable completely
-export const TURNSTILE_SITE_KEY = "0x4AAAAAAFmrJVOnHx8B41l4"; // Put your site key here
+export const CAPTCHA_ENABLED = false; // Set to false to disable completely
+export const TURNSTILE_SITE_KEY = "null"; // Put your site key here
 
 function initTurnstileTest() {
   if (!CAPTCHA_ENABLED) return;
