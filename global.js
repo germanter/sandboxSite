@@ -512,7 +512,7 @@ function showOfflineScreen() {
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 export const CAPTCHA_ENABLED = true; // Set to false whenever you want to turn it off completely
-export const TURNSTILE_SITE_KEY = "PASTE_YOUR_SITE_KEY_HERE"; // Put your Cloudflare Site key here
+export const TURNSTILE_SITE_KEY = "0x4AAAAAAFmrJVOnHx8B41l4"; // Put your Cloudflare Site key here
 
 function initTurnstileTest() {
   if (!CAPTCHA_ENABLED) return;
