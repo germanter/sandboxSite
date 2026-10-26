@@ -505,7 +505,6 @@ function showOfflineScreen() {
 
 
 
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // CLOUDFLARE TURNSTILE TEST (INVISIBLE)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -516,18 +515,17 @@ export const TURNSTILE_SITE_KEY = "0x4AAAAAAFmrJVOnHx8B41l4"; // Put your site k
 function initTurnstileTest() {
   if (!CAPTCHA_ENABLED) return;
 
-  // 1. Create a hidden container for the widget
+  // 1. Create a container (NO display: none!)
   let container = document.getElementById("cf-turnstile-test");
   if (!container) {
     container = document.createElement("div");
     container.id = "cf-turnstile-test";
-    container.style.display = "none";
     document.body.appendChild(container);
   }
 
-  // 2. Define the global callback that Cloudflare calls when ready
+  // 2. Global callback when Cloudflare script is ready
   window._onTurnstileReady = function () {
-    const widgetId = window.turnstile.render("#cf-turnstile-test", {
+    window.turnstile.render("#cf-turnstile-test", {
       sitekey: TURNSTILE_SITE_KEY,
       size: "invisible",
       callback: function (token) {
@@ -540,18 +538,15 @@ function initTurnstileTest() {
         console.error("[Turnstile] Error:", errorCode);
       }
     });
-
-    // Execute the invisible check
-    window.turnstile.execute(widgetId);
+    // NOTE: In invisible mode, render() executes automatically. No execute() call needed!
   };
 
-  // 3. Dynamically inject the script with ?onload parameter
+  // 3. Inject script
   const script = document.createElement("script");
   script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?onload=_onTurnstileReady&render=explicit";
   document.head.appendChild(script);
 }
 
-// Small toast indicator
 function showSuccessToast() {
   const toast = document.createElement("div");
   toast.innerHTML = "🛡️ <b>Turnstile (Invisible):</b> Verified!";
